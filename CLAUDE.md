@@ -13,6 +13,7 @@ Browser-based multiplayer First-Person Shooter (FPS) game.
 - **Code Architecture**: Keep code simple, clear, and split into small, single-responsibility files.
 - **Strict Scope Control**: Do not add unrequested features or extra functionality.
 - **Planning**: Before making big structural changes, explain the plan first and wait for confirmation.
+- **No Background Servers**: Never start, restart, or leave running any dev server (`npm run dev`), `npm start`, or `npm run server` in the background. The user runs servers in their own terminal. If a restart is needed, tell the user. Stop any background server processes immediately.
 
 ## Progress
 
@@ -44,8 +45,13 @@ Browser-based multiplayer First-Person Shooter (FPS) game.
 - **Run**: `npm start` (runs server + client concurrently) → http://localhost:5173
 - **Test 2 players**: Open in two tabs (one incognito)
 
-### 🔜 Milestone 4: Player-vs-Player Combat
-- Sync shooting over network
-- Damage, health, death/respawn
-- Kill feed / scoreboard
-- (Plan first, then implement)
+### ✅ Milestone 4: Player-vs-Player Combat
+- Server-authoritative hit detection (capsule raycast)
+- 100 health, body shot 25 dmg, headshot 50 dmg
+- Death → "YOU DIED" screen + 3s respawn countdown at random spawn
+- Other players' shots visible as colored tracers
+- HUD: health bar (bottom-left), hit marker, kills/deaths counters
+- Scoreboard shown while holding Tab (name, color, kills, deaths)
+- Practice target dummies still work locally
+- **Run**: `npm start` → http://localhost:5173
+- **Test PvP**: Two windows (one incognito), shoot each other, verify health/damage/kills/deaths/scoreboard
