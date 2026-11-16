@@ -78,7 +78,7 @@ export class PlayerControls {
   }
 
   getObject() {
-    return this.controls.getObject();
+    return this.controls.object;
   }
 
   isLocked() {
@@ -116,7 +116,7 @@ export class PlayerControls {
     }
 
     // Move player relative to camera rotation
-    const playerObj = this.controls.getObject();
+    const playerObj = this.controls.object;
 
     // Check proposed position with collisions
     const oldPosition = playerObj.position.clone();
@@ -143,7 +143,7 @@ export class PlayerControls {
   }
 
   checkHorizontalCollisions(oldPos) {
-    const playerObj = this.controls.getObject();
+    const playerObj = this.controls.object;
     const currentPos = playerObj.position;
     const playerBox = new THREE.Box3();
 
@@ -172,7 +172,7 @@ export class PlayerControls {
   }
 
   checkVerticalCollisions() {
-    const playerObj = this.controls.getObject();
+    const playerObj = this.controls.object;
     const playerFootY = playerObj.position.y - this.playerHeight;
 
     const raycaster = new THREE.Raycaster(
