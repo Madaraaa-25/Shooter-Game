@@ -23,6 +23,24 @@ export class UI {
     this.hitCounter.textContent = 'HITS: 0';
     document.body.appendChild(this.hitCounter);
 
+    // Player count
+    this.playerCount = document.createElement('div');
+    this.playerCount.id = 'player-count';
+    this.playerCount.style.cssText = `
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      color: #44aaff;
+      font-family: 'Courier New', monospace;
+      font-size: 20px;
+      font-weight: bold;
+      text-shadow: 0 0 10px #44aaff, 2px 2px 4px #000;
+      pointer-events: none;
+      z-index: 5;
+    `;
+    this.playerCount.textContent = 'PLAYERS: 1';
+    document.body.appendChild(this.playerCount);
+
     // Ammo counter
     this.ammoCounter = document.createElement('div');
     this.ammoCounter.id = 'ammo-counter';
@@ -137,5 +155,9 @@ export class UI {
   updateReloadProgress(progress) {
     // progress goes from 0 to 1
     this.reloadFill.style.width = `${progress * 100}%`;
+  }
+
+  updatePlayerCount(count) {
+    this.playerCount.textContent = `PLAYERS: ${count}`;
   }
 }

@@ -4,6 +4,8 @@ import { PlayerControls } from './controls.js';
 import { ShootingSystem } from './shooting.js';
 import { TargetSystem } from './targets.js';
 import { UI } from './ui.js';
+import { NetworkManager } from './network.js';
+import { OtherPlayersManager } from './otherPlayers.js';
 
 // Setup Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -45,7 +47,6 @@ targetSystem.getAllTargetMeshes().forEach(mesh => collidables.push(mesh));
 const shootingSystem = new ShootingSystem(camera, scene, ui);
 
 // Override shooting system's raycast to use target system's hit detection
-// but delegate visual effects to shootingSystem's methods
 const originalShoot = shootingSystem.shoot.bind(shootingSystem);
 shootingSystem.shoot = function() {
   if (this.isReloading || this.ammo <= 0) {
@@ -105,6 +106,46 @@ shootingSystem.shoot = function() {
   }
 };
 
+// Create Network Manager
+const network = new NetworkManager();
+
+// Create Other Players Manager
+const otherPlayers = new OtherPlayersManager(scene);
+
+// Network callbacks
+network.onPlayersList((playersList) => {
+  playersList.forEach((data) => {
+    if (data.id !== network.getMyId()) {
+      otherPlayers.addPlayer(data.id, data);
+    }
+  });
+  ui.updatePlayerCount(otherPlayers.getPlayerCount() + 1); // +1 for self
+});
+
+network.onPlayerJoined((data) => {
+  if (data.id !== network.getMyId()) {
+    otherPlayers.addPlayer(data.id, data);
+    ui.updatePlayerCount(otherPlayers.getPlayerCount() + 1);
+  }
+});
+
+network.onPlayerMoved((data) => {
+  otherPlayers.updatePlayer(data.id, data);
+});
+
+network.onPlayerLeft((id) => {
+  otherPlayers.removePlayer(id);
+  ui.updatePlayerCount(otherPlayers.getPlayerCount() + 1);
+});
+
+// Connect to server
+network.connect();
+
+// Give network a moment to connect, then set myId
+setTimeout(() => {
+  otherPlayers.setMyId(network.getMyId());
+}, 100);
+
 // Pointer Lock UI Blocker Setup
 const blocker = document.getElementById('blocker');
 const instructions = document.getElementById('instructions');
@@ -138,6 +179,13 @@ function animate() {
   playerControls.update(delta);
   shootingSystem.update(delta);
   targetSystem.update(delta);
+  otherPlayers.update(delta);
+
+  // Send local player position/rotation to server (throttled in network.js)
+  const playerObj = playerControls.getObject();
+  if (playerObj && network.socket?.connected) {
+    network.sendPlayerUpdate(playerObj.position, playerObj.quaternion);
+  }
 
   renderer.render(scene, camera);
 }
