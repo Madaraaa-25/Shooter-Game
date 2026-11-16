@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT, PLAYER_BODY_RADIUS } from './constants.js';
 
 export class PlayerControls {
   constructor(camera, domElement, collidables) {
-    this.controls = new PointerLockControls(camera, domElement);
+    this.camera = camera;
+    this.domElement = domElement;
     this.collidables = collidables;
 
     this.moveForward = false;
@@ -15,16 +16,23 @@ export class PlayerControls {
     this.velocity = new THREE.Vector3();
     this.direction = new THREE.Vector3();
 
-    this.playerHeight = 1.6;
-    this.playerRadius = 0.5;
+    this.playerHeight = PLAYER_EYE_HEIGHT;
+    this.playerRadius = PLAYER_BODY_RADIUS;
     this.gravity = 30; // m/s^2
     this.jumpVelocity = 10;
     this.moveSpeed = 40.0; // Acceleration factor
+
+    // Mouse look state
+    this.isLocked = false;
+    this.yaw = 0;   // left/right rotation (radians)
+    this.pitch = 0; // up/down rotation (radians)
+    this.sensitivity = 0.002; // radians per pixel
 
     this.initEventListeners();
   }
 
   initEventListeners() {
+    // Keyboard movement
     const onKeyDown = (event) => {
       switch (event.code) {
         case 'KeyW':
@@ -75,26 +83,57 @@ export class PlayerControls {
 
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
+
+    // Pointer lock
+    this.domElement.addEventListener('click', () => {
+      if (!this.isLocked) {
+        this.domElement.requestPointerLock();
+      }
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+      this.isLocked = document.pointerLockElement === this.domElement;
+    });
+
+    // Mouse look - only apply when pointer lock is active
+    document.addEventListener('mousemove', (event) => {
+      if (!this.isLocked) return;
+
+      // Ignore unusually large movement values (browser glitches)
+      if (Math.abs(event.movementX) > 200 || Math.abs(event.movementY) > 200) return;
+
+      // Fixed sensitivity, no delta-time scaling, no smoothing, no acceleration
+      this.yaw -= event.movementX * this.sensitivity;
+      this.pitch -= event.movementY * this.sensitivity;
+
+      // Clamp pitch between -85 and +85 degrees
+      const maxPitch = Math.PI * 85 / 180;
+      this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
+
+      // Apply rotation: yaw on Y axis, pitch on X axis, roll = 0
+      this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+    });
   }
 
   getObject() {
-    return this.controls.object;
+    // Return the camera itself - its position IS the player position
+    return this.camera;
   }
 
   isLocked() {
-    return this.controls.isLocked;
+    return this.isLocked;
   }
 
   lock() {
-    this.controls.lock();
+    this.domElement.requestPointerLock();
   }
 
   unlock() {
-    this.controls.unlock();
+    document.exitPointerLock();
   }
 
   update(delta) {
-    if (!this.controls.isLocked) return;
+    if (!this.isLocked) return;
 
     // Apply friction to horizontal velocity
     this.velocity.x -= this.velocity.x * 10.0 * delta;
@@ -115,26 +154,28 @@ export class PlayerControls {
       this.velocity.x -= this.direction.x * this.moveSpeed * delta;
     }
 
-    // Move player relative to camera rotation
-    const playerObj = this.controls.object;
+    // Move camera relative to its rotation (yaw only for horizontal movement)
+    // Get forward/right vectors from camera's rotation
+    const forward = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, this.yaw, 0, 'YXZ'));
+    const right = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, this.yaw, 0, 'YXZ'));
 
     // Check proposed position with collisions
-    const oldPosition = playerObj.position.clone();
+    const oldPosition = this.camera.position.clone();
 
-    // Forward/Backward and Right/Left movements
-    this.controls.moveRight(-this.velocity.x * delta);
-    this.controls.moveForward(-this.velocity.z * delta);
+    // Apply horizontal movement
+    this.camera.position.addScaledVector(forward, -this.velocity.z * delta);
+    this.camera.position.addScaledVector(right, -this.velocity.x * delta);
 
     // Wall / Obstacle Collision (Horizontal)
     this.checkHorizontalCollisions(oldPosition);
 
     // Vertical movement & Ground collision
-    playerObj.position.y += this.velocity.y * delta;
+    this.camera.position.y += this.velocity.y * delta;
 
-    // Floor check
-    if (playerObj.position.y < this.playerHeight) {
+    // Floor check - camera y is eye position, feet are at camera.y - PLAYER_EYE_HEIGHT
+    if (this.camera.position.y < PLAYER_EYE_HEIGHT) {
       this.velocity.y = 0;
-      playerObj.position.y = this.playerHeight;
+      this.camera.position.y = PLAYER_EYE_HEIGHT;
       this.canJump = true;
     }
 
@@ -143,8 +184,7 @@ export class PlayerControls {
   }
 
   checkHorizontalCollisions(oldPos) {
-    const playerObj = this.controls.object;
-    const currentPos = playerObj.position;
+    const currentPos = this.camera.position;
     const playerBox = new THREE.Box3();
 
     // Create bounding box for player
@@ -164,32 +204,43 @@ export class PlayerControls {
       obstacleBox.setFromObject(obj);
       if (playerBox.intersectsBox(obstacleBox)) {
         // Simple rollback on collision along horizontal axes
-        playerObj.position.x = oldPos.x;
-        playerObj.position.z = oldPos.z;
+        this.camera.position.x = oldPos.x;
+        this.camera.position.z = oldPos.z;
         break;
       }
     }
   }
 
   checkVerticalCollisions() {
-    const playerObj = this.controls.object;
-    const playerFootY = playerObj.position.y - this.playerHeight;
+    const playerFootY = this.camera.position.y - PLAYER_EYE_HEIGHT;
 
     const raycaster = new THREE.Raycaster(
-      playerObj.position,
+      this.camera.position,
       new THREE.Vector3(0, -1, 0),
       0,
-      this.playerHeight + 0.5
+      PLAYER_EYE_HEIGHT + 0.5
     );
 
     const intersects = raycaster.intersectObjects(this.collidables);
     if (intersects.length > 0) {
       const hit = intersects[0];
-      if (this.velocity.y <= 0 && hit.distance <= this.playerHeight + 0.1) {
-        playerObj.position.y = hit.point.y + this.playerHeight;
+      if (this.velocity.y <= 0 && hit.distance <= PLAYER_EYE_HEIGHT + 0.1) {
+        this.camera.position.y = hit.point.y + PLAYER_EYE_HEIGHT;
         this.velocity.y = 0;
         this.canJump = true;
       }
     }
+  }
+
+  // Get camera world position (same as camera.position since camera has no parent)
+  getWorldPosition() {
+    return this.camera.position;
+  }
+
+  // Get camera world quaternion (from current yaw/pitch)
+  getWorldQuaternion() {
+    const quaternion = new THREE.Quaternion();
+    quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
+    return quaternion;
   }
 }

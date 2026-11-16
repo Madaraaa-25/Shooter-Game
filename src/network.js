@@ -4,11 +4,18 @@ export class NetworkManager {
   constructor() {
     this.socket = null;
     this.myId = null;
-    this.players = new Map(); // id -> { position, rotation, color, mesh }
+    this.players = new Map();
     this.updateCallback = null;
     this.playerJoinedCallback = null;
     this.playerLeftCallback = null;
     this.playersListCallback = null;
+
+    // Combat callbacks
+    this.shotFiredCallback = null;
+    this.playerHitCallback = null;
+    this.playerDiedCallback = null;
+    this.playerRespawnedCallback = null;
+    this.scoreboardUpdateCallback = null;
 
     // Throttling for sending updates (~20 Hz = every 50ms)
     this.lastSendTime = 0;
@@ -16,7 +23,6 @@ export class NetworkManager {
   }
 
   connect() {
-    // Connect to Socket.IO server
     this.socket = io('http://localhost:3000', {
       transports: ['websocket', 'polling']
     });
@@ -27,14 +33,12 @@ export class NetworkManager {
     });
 
     this.socket.on('playersList', (playersList) => {
-      console.log('Received players list:', playersList.length);
       if (this.playersListCallback) {
         this.playersListCallback(playersList);
       }
     });
 
     this.socket.on('playerJoined', (data) => {
-      console.log('Player joined:', data.id);
       if (this.playerJoinedCallback) {
         this.playerJoinedCallback(data);
       }
@@ -47,9 +51,39 @@ export class NetworkManager {
     });
 
     this.socket.on('playerLeft', (data) => {
-      console.log('Player left:', data.id);
       if (this.playerLeftCallback) {
         this.playerLeftCallback(data.id);
+      }
+    });
+
+    // Combat events
+    this.socket.on('shotFired', (data) => {
+      if (this.shotFiredCallback) {
+        this.shotFiredCallback(data);
+      }
+    });
+
+    this.socket.on('playerHit', (data) => {
+      if (this.playerHitCallback) {
+        this.playerHitCallback(data);
+      }
+    });
+
+    this.socket.on('playerDied', (data) => {
+      if (this.playerDiedCallback) {
+        this.playerDiedCallback(data);
+      }
+    });
+
+    this.socket.on('playerRespawned', (data) => {
+      if (this.playerRespawnedCallback) {
+        this.playerRespawnedCallback(data);
+      }
+    });
+
+    this.socket.on('scoreboardUpdate', (data) => {
+      if (this.scoreboardUpdateCallback) {
+        this.scoreboardUpdateCallback(data);
       }
     });
 
@@ -62,7 +96,6 @@ export class NetworkManager {
     });
   }
 
-  // Call this with local player's position/rotation each frame (throttled)
   sendPlayerUpdate(position, rotation) {
     if (!this.socket || !this.socket.connected) return;
 
@@ -76,25 +109,31 @@ export class NetworkManager {
     });
   }
 
-  onPlayersList(callback) {
-    this.playersListCallback = callback;
+  // Send shot to server (origin and direction from barrel)
+  sendPlayerShoot(origin, direction) {
+    if (!this.socket || !this.socket.connected) return;
+    this.socket.emit('playerShoot', {
+      origin: { x: origin.x, y: origin.y, z: origin.z },
+      direction: { x: direction.x, y: direction.y, z: direction.z }
+    });
   }
 
-  onPlayerJoined(callback) {
-    this.playerJoinedCallback = callback;
+  requestScoreboard() {
+    if (!this.socket || !this.socket.connected) return;
+    this.socket.emit('requestScoreboard');
   }
 
-  onPlayerMoved(callback) {
-    this.updateCallback = callback;
-  }
+  onPlayersList(callback) { this.playersListCallback = callback; }
+  onPlayerJoined(callback) { this.playerJoinedCallback = callback; }
+  onPlayerMoved(callback) { this.updateCallback = callback; }
+  onPlayerLeft(callback) { this.playerLeftCallback = callback; }
+  onShotFired(callback) { this.shotFiredCallback = callback; }
+  onPlayerHit(callback) { this.playerHitCallback = callback; }
+  onPlayerDied(callback) { this.playerDiedCallback = callback; }
+  onPlayerRespawned(callback) { this.playerRespawnedCallback = callback; }
+  onScoreboardUpdate(callback) { this.scoreboardUpdateCallback = callback; }
 
-  onPlayerLeft(callback) {
-    this.playerLeftCallback = callback;
-  }
-
-  getMyId() {
-    return this.myId;
-  }
+  getMyId() { return this.myId; }
 
   disconnect() {
     if (this.socket) {

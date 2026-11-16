@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT, PLAYER_BODY_RADIUS, PLAYER_HEAD_RADIUS } from './constants.js';
 
 export class OtherPlayersManager {
   constructor(scene) {
     this.scene = scene;
-    this.players = new Map(); // id -> { mesh, targetPosition, targetQuaternion, color, nameLabel }
+    this.players = new Map(); // id -> { mesh, targetPosition, targetQuaternion, color, health, maxHealth, isDead, nameLabel }
     this.myId = null;
   }
 
@@ -16,31 +17,31 @@ export class OtherPlayersManager {
     const group = new THREE.Group();
     group.userData.playerId = id;
 
-    // Body (capsule: cylinder + two spheres)
+    // Body material
     const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: color,
+      color,
       roughness: 0.4,
       metalness: 0.1
     });
 
-    // Cylinder body
-    const cylinderGeo = new THREE.CylinderGeometry(0.35, 0.35, 1.2, 8);
-    const body = new THREE.Mesh(cylinderGeo, bodyMaterial);
-    body.position.y = 0.9;
+    // Body: cylinder + spheres - centred at PLAYER_HEIGHT/2 so bottom is at feet (y=0)
+    const bodyGeo = new THREE.CylinderGeometry(PLAYER_BODY_RADIUS, PLAYER_BODY_RADIUS, PLAYER_HEIGHT, 8);
+    const body = new THREE.Mesh(bodyGeo, bodyMaterial);
+    body.position.y = PLAYER_HEIGHT / 2;
     body.castShadow = true;
     body.receiveShadow = true;
     group.add(body);
 
-    // Bottom sphere
-    const sphereGeo = new THREE.SphereGeometry(0.35, 8, 8);
+    // Bottom sphere (feet level)
+    const sphereGeo = new THREE.SphereGeometry(PLAYER_BODY_RADIUS, 8, 8);
     const bottomSphere = new THREE.Mesh(sphereGeo, bodyMaterial);
-    bottomSphere.position.y = 0.3;
+    bottomSphere.position.y = PLAYER_BODY_RADIUS;
     bottomSphere.castShadow = true;
     group.add(bottomSphere);
 
-    // Top sphere
+    // Top sphere (top of body)
     const topSphere = new THREE.Mesh(sphereGeo, bodyMaterial);
-    topSphere.position.y = 1.5;
+    topSphere.position.y = PLAYER_HEIGHT - PLAYER_BODY_RADIUS;
     topSphere.castShadow = true;
     group.add(topSphere);
 
@@ -50,9 +51,9 @@ export class OtherPlayersManager {
       roughness: 0.6,
       metalness: 0.1
     });
-    const headGeo = new THREE.SphereGeometry(0.22, 8, 8);
+    const headGeo = new THREE.SphereGeometry(PLAYER_HEAD_RADIUS, 8, 8);
     const head = new THREE.Mesh(headGeo, headMaterial);
-    head.position.y = 1.85;
+    head.position.y = PLAYER_HEIGHT - PLAYER_BODY_RADIUS + PLAYER_HEAD_RADIUS;
     head.castShadow = true;
     group.add(head);
 
@@ -80,20 +81,28 @@ export class OtherPlayersManager {
     });
     const label = new THREE.Sprite(spriteMaterial);
     label.scale.set(2, 0.5, 1);
-    label.position.y = 2.3;
+    label.position.y = PLAYER_HEIGHT + 0.5;
     label.renderOrder = 1;
     group.add(label);
     group.userData.label = label;
+
+    // Store original materials for death effect
+    group.traverse((child) => {
+      if (child.isMesh) {
+        child.userData.originalMaterial = child.material;
+      }
+    });
 
     return group;
   }
 
   addPlayer(id, data) {
-    if (id === this.myId) return; // Don't create mesh for self
-    if (this.players.has(id)) return; // Already exists
+    if (id === this.myId) return;
+    if (this.players.has(id)) return;
 
     const mesh = this.createPlayerMesh(data.color, id);
-    mesh.position.set(data.position.x, data.position.y, data.position.z);
+    // Server sends eye position; convert to feet for visual mesh (mesh bottom at feet)
+    mesh.position.set(data.position.x, data.position.y - PLAYER_EYE_HEIGHT, data.position.z);
     mesh.quaternion.set(data.rotation.x, data.rotation.y, data.rotation.z, data.rotation.w);
 
     this.scene.add(mesh);
@@ -102,8 +111,16 @@ export class OtherPlayersManager {
       mesh,
       targetPosition: new THREE.Vector3().copy(mesh.position),
       targetQuaternion: new THREE.Quaternion().copy(mesh.quaternion),
-      color: data.color
+      color: data.color,
+      health: data.health || 100,
+      maxHealth: data.maxHealth || 100,
+      isDead: data.isDead || false
     });
+
+    // Apply dead state if needed
+    if (data.isDead) {
+      this.setPlayerDead(id, true);
+    }
   }
 
   updatePlayer(id, data) {
@@ -111,16 +128,66 @@ export class OtherPlayersManager {
 
     const player = this.players.get(id);
     if (player) {
-      // Set target for interpolation
-      player.targetPosition.set(data.position.x, data.position.y, data.position.z);
+      // Server sends eye position; convert to feet for visual mesh
+      player.targetPosition.set(data.position.x, data.position.y - PLAYER_EYE_HEIGHT, data.position.z);
       player.targetQuaternion.set(data.rotation.x, data.rotation.y, data.rotation.z, data.rotation.w);
     }
+  }
+
+  // Update health (for hit feedback)
+  updateHealth(id, health, maxHealth) {
+    const player = this.players.get(id);
+    if (player) {
+      player.health = health;
+      player.maxHealth = maxHealth;
+    }
+  }
+
+  // Set player dead/alive visual state
+  setPlayerDead(id, isDead) {
+    const player = this.players.get(id);
+    if (!player) return;
+
+    player.isDead = isDead;
+
+    if (isDead) {
+      // Hide the mesh but keep it in scene for respawning
+      player.mesh.visible = false;
+      // Could add a death effect here (ragdoll, particles, etc.)
+    } else {
+      // Respawn - show mesh at new position
+      player.mesh.visible = true;
+      // Reset materials to original
+      player.mesh.traverse((child) => {
+        if (child.isMesh && child.userData.originalMaterial) {
+          child.material = child.userData.originalMaterial;
+        }
+      });
+    }
+  }
+
+  // Respawn at new position
+  respawnPlayer(id, position, health) {
+    const player = this.players.get(id);
+    if (!player) return;
+
+    player.mesh.position.set(position.x, position.y, position.z);
+    player.targetPosition.set(position.x, position.y, position.z);
+    player.health = health;
+    player.isDead = false;
+    player.mesh.visible = true;
+
+    // Reset materials
+    player.mesh.traverse((child) => {
+      if (child.isMesh && child.userData.originalMaterial) {
+        child.material = child.userData.originalMaterial;
+      }
+    });
   }
 
   removePlayer(id) {
     const player = this.players.get(id);
     if (player) {
-      // Dispose geometries and materials
       player.mesh.traverse((child) => {
         if (child.isMesh) {
           child.geometry.dispose();
@@ -143,13 +210,12 @@ export class OtherPlayersManager {
 
   // Call each frame to interpolate positions
   update(delta) {
-    const lerpFactor = Math.min(1, delta * 15); // ~15x per second interpolation
+    const lerpFactor = Math.min(1, delta * 15);
 
     this.players.forEach((player) => {
-      // Interpolate position
-      player.mesh.position.lerp(player.targetPosition, lerpFactor);
+      if (player.isDead) return; // Don't interpolate dead players
 
-      // Interpolate rotation (slerp)
+      player.mesh.position.lerp(player.targetPosition, lerpFactor);
       player.mesh.quaternion.slerp(player.targetQuaternion, lerpFactor);
     });
   }
@@ -160,5 +226,10 @@ export class OtherPlayersManager {
 
   getPlayers() {
     return this.players;
+  }
+
+  // Get player data for scoreboard
+  getPlayerData(id) {
+    return this.players.get(id);
   }
 }

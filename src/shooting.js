@@ -216,6 +216,29 @@ export class ShootingSystem {
     requestAnimationFrame(fadeSpark);
   }
 
+  // Create tracer for other players' shots (with custom color)
+  createNetworkTracer(start, end, color) {
+    const distance = start.distanceTo(end);
+    const midPoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+
+    const material = new THREE.MeshBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false,
+      toneMapped: false
+    });
+
+    const tracer = new THREE.Mesh(this.tracerGeometry, material);
+    tracer.position.copy(midPoint);
+    tracer.scale.set(1, 1, distance);
+    tracer.lookAt(end);
+    tracer.rotateX(Math.PI / 2);
+
+    this.scene.add(tracer);
+    this.activeTracers.push({ tracer, age: 0, maxAge: 90 });
+  }
+
   startReload() {
     this.isReloading = true;
     this.ui.setReloading(true);
