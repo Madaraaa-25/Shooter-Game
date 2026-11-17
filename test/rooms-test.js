@@ -191,6 +191,9 @@ function leaveRoom(socketId) {
   if (room.players.size === 0) {
     rooms.delete(code);
     console.log(`[SERVER] room ${code} deleted`);
+  } else {
+    // Notify remaining players in the room
+    io.to(code).emit('playerLeft', { id: socketId });
   }
 }
 
@@ -360,6 +363,11 @@ io.on('connection', (socket) => {
     if (found) {
       broadcastScoreboard(found.code);
     }
+  });
+
+  socket.on('leaveRoom', () => {
+    leaveRoom(socket.id);
+    socket.emit('roomLeft');
   });
 });
 
@@ -587,6 +595,58 @@ async function testEmptyRoomDeleted() {
   }
 }
 
+async function testLeaveRoom() {
+  console.log('\n[TEST] Client A leaves the room');
+
+  const clientA = await connectClient('LEAVETEST');
+  await sleep(100);
+  const clientB = await connectClient('LEAVETEST');
+  await sleep(200);
+
+  let bLeft = false;
+  clientB.on('playerLeft', (data) => { if (data.id === clientA.myId) bLeft = true; });
+
+  let aRoomLeft = false;
+  clientA.on('roomLeft', () => { aRoomLeft = true; });
+
+  clientA.emit('leaveRoom');
+  await sleep(300);
+
+  clientA.disconnect();
+  await sleep(200);
+
+  if (aRoomLeft && bLeft) {
+    console.log('[TEST] PASS: A got roomLeft, B got playerLeft');
+  } else {
+    console.log(`[TEST] FAIL: A got roomLeft=${aRoomLeft}, B got playerLeft=${bLeft}`);
+    clientB.disconnect();
+    return false;
+  }
+
+  // B is now the last player - disconnect to delete the room
+  clientB.disconnect();
+  await sleep(400);
+
+  // Try to join the deleted room
+  const clientC = ClientIO(`http://localhost:3100`, { transports: ['websocket'], forceNew: true, reconnection: false, autoConnect: false });
+  clientC.connect();
+
+  let roomError = false;
+  clientC.on('roomError', (data) => { if (data.message === 'Room not found') roomError = true; });
+
+  clientC.emit('joinRoom', 'LEAVETEST');
+  await sleep(300);
+  clientC.disconnect();
+
+  if (roomError) {
+    console.log('[TEST] PASS: Empty room deleted after last player left');
+    return true;
+  } else {
+    console.log('[TEST] FAIL: Empty room was not deleted after last player left');
+    return false;
+  }
+}
+
 // ============================================================
 // Run all tests
 
@@ -606,6 +666,9 @@ async function runTests() {
   await sleep(500);
 
   results.push(await testEmptyRoomDeleted());
+  await sleep(500);
+
+  results.push(await testLeaveRoom());
   await sleep(500);
 
   const passed = results.filter(r => r).length;

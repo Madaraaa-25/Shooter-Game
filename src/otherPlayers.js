@@ -208,6 +208,13 @@ export class OtherPlayersManager {
     }
   }
 
+  // Remove all other players (used when leaving a room)
+  clear() {
+    for (const id of Array.from(this.players.keys())) {
+      this.removePlayer(id);
+    }
+  }
+
   // Call each frame to interpolate positions
   update(delta) {
     const lerpFactor = Math.min(1, delta * 15);

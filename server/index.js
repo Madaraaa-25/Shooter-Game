@@ -360,6 +360,21 @@ io.on('connection', (socket) => {
     // If player already in a room, leave it first
     const currentRoom = getPlayerRoom(socket.id);
     if (currentRoom) {
+      // If they are already in the requested room, just re-confirm it without
+      // leaving and re-joining (which would log a second join).
+      if (currentRoom.code === roomCode) {
+        const room = currentRoom.room;
+        const playerData = room.players.get(socket.id);
+        const playersList = Array.from(room.players.values()).map(p => ({
+          id: p.id,
+          position: { x: p.position.x, y: p.position.y + PLAYER_EYE_HEIGHT, z: p.position.z },
+          rotation: p.rotation, color: p.color,
+          health: p.health, maxHealth: p.maxHealth, kills: p.kills, deaths: p.deaths, isDead: p.isDead
+        }));
+        socket.emit('playersList', playersList);
+        socket.emit('roomJoined', { roomCode, myId: socket.id });
+        return;
+      }
       leaveRoom(socket.id);
     }
 
@@ -496,6 +511,13 @@ io.on('connection', (socket) => {
     if (found) {
       broadcastScoreboard(found.code);
     }
+  });
+
+  // Leave the current room (player pressed LEAVE ROOM)
+  socket.on('leaveRoom', () => {
+    leaveRoom(socket.id);
+    console.log(`[SERVER] leaveRoom ${socket.id} handled`);
+    socket.emit('roomLeft');
   });
 });
 

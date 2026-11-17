@@ -48,12 +48,36 @@ export class ShootingSystem {
 
     this.activeTracers = [];
     this.activeFlash = null;
+    this.activeSparks = [];
 
     // Raycaster for shooting
     this.raycaster = new THREE.Raycaster();
     this.raycaster.far = 100;
 
     this.initEventListeners();
+  }
+
+  // Remove every live visual effect (tracers, muzzle flash, hit sparks).
+  // Safe to call when nothing is active.
+  clearSceneEffects() {
+    for (const t of this.activeTracers) {
+      this.scene.remove(t.tracer);
+      t.tracer.geometry.dispose();
+      if (t.tracer.material) t.tracer.material.dispose();
+    }
+    this.activeTracers = [];
+
+    if (this.activeFlash) {
+      this.scene.remove(this.activeFlash);
+      if (this.activeFlash.material) this.activeFlash.material.dispose();
+      this.activeFlash = null;
+    }
+
+    for (const s of this.activeSparks) {
+      this.scene.remove(s.sprite);
+      if (s.sprite.material) s.sprite.material.dispose();
+    }
+    this.activeSparks = [];
   }
 
   initEventListeners() {
@@ -195,6 +219,7 @@ export class ShootingSystem {
     spark.position.copy(position);
 
     this.scene.add(spark);
+    this.activeSparks.push({ sprite: spark, material: sparkMaterial });
 
     let opacity = 1;
     let scale = 0.3;

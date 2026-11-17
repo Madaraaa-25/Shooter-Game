@@ -9,6 +9,161 @@ export class UI {
     this.respawnTime = 0;
     this.createHUD();
     this.initScoreboard();
+    this.createLobby();
+  }
+
+  createLobby() {
+    // Full-screen lobby overlay
+    this.lobby = document.createElement('div');
+    this.lobby.id = 'lobby';
+    this.lobby.style.cssText = `
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Courier New', monospace;
+      color: #ffffff;
+      z-index: 100;
+    `;
+    this.lobby.innerHTML = `
+      <div style="font-size: 52px; font-weight: bold; color: #00ff88; text-shadow: 0 0 20px #00ff88, 4px 4px 8px #000; margin-bottom: 8px;">3D FPS ARENA</div>
+      <div style="font-size: 16px; color: #888; margin-bottom: 40px;">Multiplayer lobby</div>
+
+      <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 24px;">
+        <button id="lobby-create" style="
+          padding: 14px 28px; font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold;
+          background: #00ff88; color: #000; border: none; border-radius: 4px; cursor: pointer;
+          box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);">CREATE ROOM</button>
+
+        <input id="lobby-code" maxlength="4" value="" style="
+          width: 90px; text-align: center; font-family: 'Courier New', monospace; font-size: 22px; font-weight: bold;
+          background: #111; color: #00ff88; border: 2px solid #00ff88; border-radius: 4px; padding: 10px; letter-spacing: 4px;">;
+
+        <button id="lobby-join" style="
+          padding: 14px 28px; font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold;
+          background: #44aaff; color: #000; border: none; border-radius: 4px; cursor: pointer;
+          box-shadow: 0 0 15px rgba(68, 170, 255, 0.5);">JOIN</button>
+      </div>
+
+      <div id="lobby-error" style="color: #ff4444; font-size: 16px; height: 24px; text-shadow: 0 0 8px #ff4444;"></div>
+      <div id="lobby-status" style="color: #ffaa00; font-size: 16px; margin-top: 12px; height: 24px;"></div>
+    `;
+    document.body.appendChild(this.lobby);
+
+    this.lobbyCreateBtn = document.getElementById('lobby-create');
+    this.lobbyJoinBtn = document.getElementById('lobby-join');
+    this.lobbyCodeInput = document.getElementById('lobby-code');
+    this.lobbyErrorEl = document.getElementById('lobby-error');
+    this.lobbyStatusEl = document.getElementById('lobby-status');
+
+    // Auto-uppercase and cap at 4 characters
+    this.lobbyCodeInput.addEventListener('input', () => {
+      this.lobbyCodeInput.value = this.lobbyCodeInput.value.toUpperCase().slice(0, 4);
+    });
+
+    this.lobbyCodeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.onLobbyJoinClick();
+    });
+  }
+
+  setLobbyCallbacks(onCreate, onJoin) {
+    this.lobbyCreateBtn.addEventListener('click', () => onCreate());
+    this.lobbyJoinBtn.addEventListener('click', () => onJoin());
+  }
+
+  setLobbyError(message) {
+    this.lobbyErrorEl.textContent = message || '';
+    this.lobbyStatusEl.textContent = '';
+  }
+
+  setLobbyStatus(message) {
+    this.lobbyStatusEl.textContent = message || '';
+    this.lobbyErrorEl.textContent = '';
+  }
+
+  setLobbyButtonsEnabled(enabled) {
+    // Only the buttons are disabled while the socket is not connected.
+    // The code input must always be enabled and writable.
+    this.lobbyCreateBtn.disabled = !enabled;
+    this.lobbyJoinBtn.disabled = !enabled;
+    this.lobbyCreateBtn.style.opacity = enabled ? '1' : '0.4';
+    this.lobbyJoinBtn.style.opacity = enabled ? '1' : '0.4';
+  }
+
+  getLobbyCode() {
+    return this.lobbyCodeInput.value.trim();
+  }
+
+  clearLobbyCode() {
+    this.lobbyCodeInput.value = '';
+  }
+
+  showLobby() {
+    this.lobby.style.display = 'flex';
+  }
+
+  hideLobby() {
+    this.lobby.style.display = 'none';
+  }
+
+  // Hide the whole game HUD while the lobby is on top
+  hideHUD() {
+    this.hitCounter.style.display = 'none';
+    this.kdCounter.style.display = 'none';
+    this.playerCount.style.display = 'none';
+    this.healthContainer.style.display = 'none';
+    this.ammoCounter.style.display = 'none';
+    this.reloadIndicator.style.display = 'none';
+    this.reloadBar.style.display = 'none';
+    this.hitMarker.style.display = 'none';
+    if (this.roomCodeDisplay) this.roomCodeDisplay.style.display = 'none';
+  }
+
+  showHUD() {
+    this.hitCounter.style.display = 'block';
+    this.kdCounter.style.display = 'block';
+    this.playerCount.style.display = 'block';
+    this.healthContainer.style.display = 'block';
+    this.ammoCounter.style.display = 'block';
+    this.hitMarker.style.display = 'none';
+    if (this.roomCodeDisplay) this.roomCodeDisplay.style.display = 'block';
+  }
+
+  // Room code shown in the HUD, top-center
+  createRoomCodeDisplay() {
+    this.roomCodeDisplay = document.createElement('div');
+    this.roomCodeDisplay.id = 'room-code';
+    this.roomCodeDisplay.style.cssText = `
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #ffaa00;
+      font-family: 'Courier New', monospace;
+      font-size: 16px;
+      font-weight: bold;
+      text-shadow: 0 0 10px #ffaa00, 2px 2px 4px #000;
+      pointer-events: none;
+      z-index: 5;
+      display: none;
+    `;
+    this.roomCodeDisplay.textContent = 'ROOM: ';
+    document.body.appendChild(this.roomCodeDisplay);
+  }
+
+  setRoomCode(code) {
+    if (!this.roomCodeDisplay) this.createRoomCodeDisplay();
+    this.roomCodeDisplay.textContent = `ROOM: ${code}`;
+    this.roomCodeDisplay.style.display = 'block';
+  }
+
+  hideRoomCode() {
+    if (this.roomCodeDisplay) this.roomCodeDisplay.style.display = 'none';
   }
 
   createHUD() {

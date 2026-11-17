@@ -87,6 +87,8 @@ export class PlayerControls {
     // Pointer lock
     this.domElement.addEventListener('click', () => {
       if (!this.isLocked) {
+        // Only the Click to Play overlay in a ready room may request pointer lock
+        if (window.__fpsCurrentScreen !== 'ready') return;
         this.domElement.requestPointerLock();
       }
     });

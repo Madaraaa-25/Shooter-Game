@@ -13,6 +13,8 @@ Browser-based multiplayer First-Person Shooter (FPS) game.
 - **Code Architecture**: Keep code simple, clear, and split into small, single-responsibility files.
 - **Strict Scope Control**: Do not add unrequested features or extra functionality.
 - **Planning**: Before making big structural changes, explain the plan first and wait for confirmation.
+- **Run `node --check` after any edit**: syntax-check every changed server/test file before saying you are done.
+- **If an edit fails twice, rewrite the whole file in one go**: do not retry a failing Edit; replace the entire file with Write instead.
 - **No Background Servers**: Never start, restart, or leave running any dev server (`npm run dev`), `npm start`, or `npm run server` in the background. The user runs servers in their own terminal. If a restart is needed, tell the user. Stop any background server processes immediately.
 - **Server Syntax Check**: After ANY edit to a server file, run `node --check server/index.js` before saying you are done.
 
@@ -56,6 +58,19 @@ Browser-based multiplayer First-Person Shooter (FPS) game.
 - Practice target dummies still work locally
 - **Run**: `npm start` → http://localhost:5173
 - **Test PvP**: Two windows (one incognito), shoot each other, verify health/damage/kills/deaths/scoreboard
+
+### ✅ Milestone 5: Rooms with Join Codes, Lobby Screen, Leave Room
+- Rooms on the server: `createRoom` (optional 4-char code), `joinRoom`, `roomJoined`, `roomError`, `leaveRoom`/`roomLeft`. Max 8 players per room, room-scoped broadcasts (`io.to(code)`), `playerLeft` on leave, room deleted when empty.
+- Client no longer auto-joins a room. On connect it sits in the lobby until the player picks.
+- Lobby screen (full-screen overlay, solid black, z-index 100): game title, CREATE ROOM button, 4-char room-code input (auto-uppercase, max 4) + JOIN button, error line, "Connecting..." status. Buttons disabled until the socket connects.
+- Screen state machine in `src/main.js`: `setScreen(state)` with exactly three states — `lobby` (lobby visible, HUD hidden), `ready` (in a room, pointer not locked: "Click to Play" overlay + LEAVE ROOM button + "Press Esc to release the mouse" visible), `playing` (pointer locked: all overlays hidden). One source of truth; `pointerlockchange` is the only trigger for ready/playing.
+- Pointer lock may be requested ONLY on the "ready" screen from the "Click to Play" overlay itself (never from the lobby, code input, CREATE ROOM, JOIN or LEAVE ROOM). Gaining pointer lock while in the lobby is refused with `document.exitPointerLock()`.
+- LEAVE ROOM resets locally synchronously (clear other players, clear tracers/flash/sparks, hide scoreboard/death screen, health 100, ammo 30/30, stats 0, exit pointer lock, back to lobby) and still emits `leaveRoom`; the server reply runs the same reset.
+- `src/network.js` tracks `roomCode` and ignores stale events (playersList, playerJoined, playerMoved, playerLeft, shotFired, playerHit, playerDied, playerRespawned, scoreboardUpdate) when not in a room; `startLeaving()` resets state locally before the reply.
+- Room code shown in the HUD top-center as "ROOM: ABCD".
+- **Run**: `npm start` → http://localhost:5173
+- **Test rooms**: `node test/rooms-test.js` (6/6) — two clients same room, different rooms, wrong code, room full, empty room deleted, leave room.
+- **Test combat**: `node test/pvp-test.js` — spawns the REAL server (`node server/index.js`) on port 3100, connects A (createRoom "PVPT") + B (joinRoom "PVPT"), and checks body shots at 3/10/30/60m, headshot, kill/respawn, away shot, ground shot, platform shot.
 
 **Key Technical Details:**
 - Unified height convention (defined in `src/constants.js`): `PLAYER_EYE_HEIGHT = 1.6`, `PLAYER_HEIGHT = 1.8`

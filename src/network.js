@@ -12,6 +12,13 @@ export class NetworkManager {
     this.roomJoinedCallback = null;
     this.roomErrorCallback = null;
 
+    // Lobby state: true until the player joins a room
+    this.inLobby = true;
+
+    // Current room code (null while in the lobby). Used to ignore stale
+    // events from a previous room.
+    this.roomCode = null;
+
     // Combat callbacks
     this.shotFiredCallback = null;
     this.playerHitCallback = null;
@@ -32,62 +39,60 @@ export class NetworkManager {
     this.socket.on('connect', () => {
       this.myId = this.socket.id;
       console.log('Connected to server, my ID:', this.myId);
-
-      // Auto-join default room "TEST"
-      this.socket.emit('joinRoom', 'TEST');
+      // Wait in the lobby until the player chooses a room.
     });
 
     this.socket.on('playersList', (playersList) => {
-      if (this.playersListCallback) {
+      if (this.inRoom() && this.playersListCallback) {
         this.playersListCallback(playersList);
       }
     });
 
     this.socket.on('playerJoined', (data) => {
-      if (this.playerJoinedCallback) {
+      if (this.inRoom() && this.playerJoinedCallback) {
         this.playerJoinedCallback(data);
       }
     });
 
     this.socket.on('playerMoved', (data) => {
-      if (this.updateCallback) {
+      if (this.inRoom() && this.updateCallback) {
         this.updateCallback(data);
       }
     });
 
     this.socket.on('playerLeft', (data) => {
-      if (this.playerLeftCallback) {
+      if (this.inRoom() && this.playerLeftCallback) {
         this.playerLeftCallback(data.id);
       }
     });
 
     // Combat events
     this.socket.on('shotFired', (data) => {
-      if (this.shotFiredCallback) {
+      if (this.inRoom() && this.shotFiredCallback) {
         this.shotFiredCallback(data);
       }
     });
 
     this.socket.on('playerHit', (data) => {
-      if (this.playerHitCallback) {
+      if (this.inRoom() && this.playerHitCallback) {
         this.playerHitCallback(data);
       }
     });
 
     this.socket.on('playerDied', (data) => {
-      if (this.playerDiedCallback) {
+      if (this.inRoom() && this.playerDiedCallback) {
         this.playerDiedCallback(data);
       }
     });
 
     this.socket.on('playerRespawned', (data) => {
-      if (this.playerRespawnedCallback) {
+      if (this.inRoom() && this.playerRespawnedCallback) {
         this.playerRespawnedCallback(data);
       }
     });
 
     this.socket.on('scoreboardUpdate', (data) => {
-      if (this.scoreboardUpdateCallback) {
+      if (this.inRoom() && this.scoreboardUpdateCallback) {
         this.scoreboardUpdateCallback(data);
       }
     });
@@ -95,6 +100,8 @@ export class NetworkManager {
     // Room events
     this.socket.on('roomJoined', (data) => {
       console.log('Joined room:', data.roomCode);
+      this.inLobby = false;
+      this.roomCode = data.roomCode;
       if (this.roomJoinedCallback) {
         this.roomJoinedCallback(data);
       }
@@ -102,12 +109,18 @@ export class NetworkManager {
 
     this.socket.on('roomError', (data) => {
       console.log('Room error:', data.message);
-      if (data.message === 'Room not found') {
-        // Try to create the room
-        this.socket.emit('createRoom', 'TEST');
-      }
+      // Stay in the lobby and let the UI show the error message.
       if (this.roomErrorCallback) {
         this.roomErrorCallback(data);
+      }
+    });
+
+    this.socket.on('roomLeft', () => {
+      console.log('Left room');
+      this.inLobby = true;
+      this.roomCode = null;
+      if (this.roomLeftCallback) {
+        this.roomLeftCallback();
       }
     });
 
@@ -150,13 +163,29 @@ export class NetworkManager {
   // Room methods
   createRoom(requestedCode = null) {
     if (!this.socket || !this.socket.connected) return;
+    this.inLobby = false;
+    this.roomCode = requestedCode || null;
     this.socket.emit('createRoom', requestedCode);
   }
 
   joinRoom(roomCode) {
     if (!this.socket || !this.socket.connected) return;
+    this.inLobby = false;
+    this.roomCode = roomCode;
     this.socket.emit('joinRoom', roomCode);
   }
+
+  // Called locally the moment the player clicks LEAVE ROOM, before the
+  // server reply arrives, so the UI resets immediately.
+  startLeaving() {
+    this.inLobby = true;
+    this.roomCode = null;
+  }
+
+  isInLobby() { return this.inLobby; }
+  isSocketConnected() { return !!(this.socket && this.socket.connected); }
+  inRoom() { return !this.inLobby && this.roomCode !== null; }
+  getRoomCode() { return this.roomCode; }
 
   onPlayersList(callback) { this.playersListCallback = callback; }
   onPlayerJoined(callback) { this.playerJoinedCallback = callback; }
@@ -169,6 +198,13 @@ export class NetworkManager {
   onScoreboardUpdate(callback) { this.scoreboardUpdateCallback = callback; }
   onRoomJoined(callback) { this.roomJoinedCallback = callback; }
   onRoomError(callback) { this.roomErrorCallback = callback; }
+  onRoomLeft(callback) { this.roomLeftCallback = callback; }
+
+  leaveRoom() {
+    if (!this.socket || !this.socket.connected) return;
+    this.inLobby = true;
+    this.socket.emit('leaveRoom');
+  }
 
   getMyId() { return this.myId; }
 

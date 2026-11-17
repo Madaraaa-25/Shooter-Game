@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+
+// Exposed before controls.js is imported so its click handler can gate on it
+window.__fpsCurrentScreen = 'lobby';
+
 import { createArena } from './arena.js';
 import { PlayerControls } from './controls.js';
 import { ShootingSystem } from './shooting.js';
@@ -37,6 +41,7 @@ const playerControls = new PlayerControls(camera, document.body, collidables);
 
 // Create UI
 const ui = new UI();
+ui.createRoomCodeDisplay();
 
 // Create Target System
 const targetSystem = new TargetSystem(scene);
@@ -51,6 +56,9 @@ const shootingSystem = new ShootingSystem(camera, scene, ui);
 // but also send shot to server for PvP
 const originalShoot = shootingSystem.shoot.bind(shootingSystem);
 shootingSystem.shoot = function() {
+  // No shooting while waiting in the lobby
+  if (network.isInLobby()) return;
+
   if (this.isReloading || this.ammo <= 0) {
     if (this.ammo <= 0 && !this.isReloading) {
       this.startReload();
@@ -252,6 +260,141 @@ network.onScoreboardUpdate((players) => {
   ui.updateScoreboard(scoreboardData);
 });
 
+// ============================================================
+// Lobby
+// ============================================================
+let lobbyBusy = false;
+
+function enableLobbyButtons() {
+  lobbyBusy = false;
+  ui.setLobbyButtonsEnabled(network.isSocketConnected());
+}
+
+ui.setLobbyCallbacks(
+  () => {
+    if (lobbyBusy) return;
+    lobbyBusy = true;
+    ui.setLobbyButtonsEnabled(false);
+    ui.setLobbyError('');
+    ui.setLobbyStatus('');
+    network.createRoom();
+  },
+  () => {
+    if (lobbyBusy) return;
+    const code = ui.getLobbyCode();
+    if (!code) {
+      ui.setLobbyError('Enter a 4-character room code');
+      return;
+    }
+    lobbyBusy = true;
+    ui.setLobbyButtonsEnabled(false);
+    ui.setLobbyError('');
+    ui.setLobbyStatus('');
+    network.joinRoom(code);
+  }
+);
+
+// ============================================================
+// Screen state - ONE source of truth for what is visible
+// ============================================================
+let currentScreen = 'lobby';
+
+function setScreen(state) {
+  currentScreen = state;
+  window.__fpsCurrentScreen = state;
+  console.log('[SCREEN]', state);
+
+  const inRoom = state !== 'lobby';
+
+  // Lobby overlay
+  if (state === 'lobby') {
+    ui.showLobby();
+    ui.hideHUD();
+  } else {
+    ui.hideLobby();
+    ui.showHUD();
+  }
+
+  // "Click to Play" overlay + Esc hint + LEAVE ROOM button
+  blocker.style.display = (state === 'ready') ? 'flex' : 'none';
+  leaveRoomBtn.style.display = (state === 'ready') ? 'inline-block' : 'none';
+  escHint.style.display = (state === 'ready') ? 'block' : 'none';
+
+  // Crosshair (defined in index.html)
+  const crosshair = document.getElementById('crosshair');
+  if (crosshair) crosshair.style.display = inRoom ? 'block' : 'none';
+
+  // Canvas must not capture clicks while the lobby is shown
+  renderer.domElement.style.pointerEvents = state === 'lobby' ? 'none' : 'auto';
+}
+
+function onRoomJoined(data) {
+  ui.setRoomCode(data.roomCode);
+  ui.setLobbyError('');
+  ui.clearLobbyCode();
+  enableLobbyButtons();
+  setScreen('ready');
+}
+
+function onRoomError(data) {
+  ui.setLobbyError(data.message);
+  enableLobbyButtons();
+  setScreen('lobby');
+}
+
+network.onRoomJoined(onRoomJoined);
+network.onRoomError(onRoomError);
+network.onRoomLeft(onRoomLeft);
+
+// Full local reset when leaving a room. Runs synchronously, is safe to call
+// twice (the button click and the server reply both use it).
+function resetRoomState() {
+  // 1. Remove other-player capsules, labels and interpolation state
+  otherPlayers.clear();
+
+  // 2. Remove live visual effects from the scene
+  shootingSystem.clearSceneEffects();
+
+  // 3. Clear scoreboard data and hide the scoreboard and death screen
+  ui.updateScoreboard([]);
+  ui.hideScoreboard();
+  ui.hideDeathScreen();
+
+  // 4. Reset local state
+  isDead = false;
+  myHealth = 100;
+  myMaxHealth = 100;
+  myKills = 0;
+  myDeaths = 0;
+  ui.hits = 0;
+  ui.kills = 0;
+  ui.deaths = 0;
+  ui.health = 100;
+  ui.maxHealth = 100;
+  ui.updateHealth(100, 100);
+  ui.updateAmmo(30, 30);
+  ui.hitCounter.textContent = 'HITS: 0';
+  ui.kdCounter.textContent = 'KILLS: 0  DEATHS: 0';
+  ui.updatePlayerCount(1);
+  ui.hideRoomCode();
+
+  // 5. Exit pointer lock
+  if (document.pointerLockElement) document.exitPointerLock();
+
+  // 6. Back to the lobby
+  ui.setLobbyError('');
+  ui.clearLobbyCode();
+  enableLobbyButtons();
+  setScreen('lobby');
+
+  console.log('[LEAVE] reset done', performance.now());
+}
+
+function onRoomLeft() {
+  console.log('[LEAVE] roomLeft received', performance.now());
+  resetRoomState();
+}
+
 // Tab key for scoreboard
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Tab') {
@@ -278,24 +421,53 @@ setTimeout(() => {
 // Pointer Lock UI Blocker Setup
 const blocker = document.getElementById('blocker');
 const instructions = document.getElementById('instructions');
+const leaveRoomBtn = document.getElementById('leave-room');
+const escHint = document.getElementById('esc-hint');
 
-function updateBlocker() {
-  if (document.pointerLockElement) {
-    blocker.style.display = 'none';
-  } else {
-    blocker.style.display = 'flex';
-  }
-}
-
-instructions.addEventListener('click', () => {
+// Pointer lock may be requested ONLY from the Click to Play overlay while in
+// ready state. The lobby, code input, CREATE ROOM, JOIN and LEAVE ROOM buttons
+// must never trigger it.
+instructions.addEventListener('click', (e) => {
+  if (currentScreen !== 'ready') return;
+  if (e.target !== instructions && !instructions.contains(e.target)) return;
+  if (window.__fpsCurrentScreen !== 'ready') return;
   playerControls.lock();
 });
 
-// Listen for pointer lock changes - hide overlay when ANY element has pointer lock
-document.addEventListener('pointerlockchange', updateBlocker);
+// LEAVE ROOM button: must not start pointer lock.
+// Reset locally the moment the button is clicked, then emit leaveRoom.
+leaveRoomBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  console.log('[LEAVE] click', performance.now());
+  network.startLeaving();
+  resetRoomState();
+  network.leaveRoom();
+});
 
-// Also check at startup
-updateBlocker();
+// Pointer lock changes are the only trigger for the playing/ready transition
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement) {
+    if (currentScreen === 'lobby') {
+      // Pointer lock was gained while in the lobby - refuse it and stay put
+      document.exitPointerLock();
+      return;
+    }
+    setScreen('playing');
+  } else if (network.isInLobby()) {
+    setScreen('lobby');
+  } else {
+    setScreen('ready');
+  }
+});
+
+// If the socket connects before the lobby is shown, unlock it immediately
+if (network.socket) {
+  network.socket.on('connect', () => setScreen('lobby'));
+  if (network.socket.connected) setScreen('lobby');
+}
+
+// Initial screen
+setScreen('lobby');
 
 // Window Resize Handler
 window.addEventListener('resize', () => {
@@ -312,8 +484,8 @@ function animate() {
 
   const delta = Math.min(clock.getDelta(), 0.1);
 
-  // Don't update movement if dead
-  if (!isDead) {
+  // Don't update movement if dead or still in the lobby
+  if (!isDead && !network.isInLobby()) {
     playerControls.update(delta);
   }
 
