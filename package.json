@@ -8,15 +8,19 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
-    "start": "concurrently \"npm run server\" \"npm run dev\""
+    "start": "concurrently \"npm run server\" \"npm run dev\"",
+    "start:prod": "node server/index.js"
   },
   "dependencies": {
     "three": "^0.170.0",
-    "socket.io-client": "^4.7.5"
+    "socket.io-client": "^4.7.5",
+    "socket.io": "^4.7.5"
   },
   "devDependencies": {
     "vite": "^6.0.0",
-    "concurrently": "^8.2.2",
-    "socket.io": "^4.7.5"
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

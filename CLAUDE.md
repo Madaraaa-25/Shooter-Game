@@ -18,6 +18,7 @@ Browser-based multiplayer First-Person Shooter (FPS) game.
 - **network.js keeps ONE callback per event**: `onRoomJoined`, `onRoomError`, `onRoomLeft`, etc. are single slots, so never register a second handler for the same event — extend the existing one instead. After editing client files, check that every function that is called or registered is defined exactly once with the exact spelling, and that it is defined before first use or is a hoisted function declaration.
 - **No Background Servers**: Never start, restart, or leave running any dev server (`npm run dev`), `npm start`, or `npm run server` in the background. The user runs servers in their own terminal. If a restart is needed, tell the user. Stop any background server processes immediately.
 - **Server Syntax Check**: After ANY edit to a server file, run `node --check server/index.js` before saying you are done.
+- **Language & Replies**: Always reply in English only, even after /clear. Keep replies short. Never start servers.
 
 ## Progress
 

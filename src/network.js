@@ -32,7 +32,12 @@ export class NetworkManager {
   }
 
   connect() {
-    this.socket = io('http://localhost:3000', {
+    // In development (Vite on 5173) talk to the separate server on port 3000.
+    // In production the page and the socket share one origin, so use that.
+    const url = import.meta.env.DEV
+      ? `${window.location.protocol}//${window.location.hostname}:3000`
+      : window.location.origin;
+    this.socket = io(url, {
       transports: ['websocket', 'polling']
     });
 

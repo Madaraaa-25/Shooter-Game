@@ -1,9 +1,99 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { readFile, readdirSync } from 'fs';
+import { extname, join, normalize, dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
-const httpServer = createServer();
+// Directory this file lives in, so we can locate dist/ relative to it.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DIST_DIR = resolve(__dirname, '..', 'dist');
+const HAS_DIST = (() => {
+  try { readdirSync(DIST_DIR); return true; }
+  catch { return false; }
+})();
+
+// Map of file extension -> MIME type for the built game assets.
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.map': 'application/json; charset=utf-8'
+};
+
+// Serve the built game from dist/ when it exists. Unknown paths fall back to
+// index.html (SPA routing). Path traversal outside dist/ is blocked.
+function serveStatic(req, res) {
+  if (!HAS_DIST) {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('Not found');
+    return;
+  }
+
+  let reqPath = decodeURIComponent(req.url.split('?')[0]);
+  if (reqPath === '/') reqPath = '/index.html';
+
+  // Reject anything that escapes the dist directory.
+  const resolved = resolve(DIST_DIR, '.' + reqPath);
+  if (!resolved.startsWith(DIST_DIR + pathSep()) || resolved !== normalize(resolved)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
+  }
+
+  const ext = extname(resolved).toLowerCase();
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+  readFile(resolved, (err, data) => {
+    if (err) {
+      // Fall back to index.html for unknown paths (SPA routing).
+      if (ext === '' || !MIME_TYPES[ext]) {
+        readFile(join(DIST_DIR, 'index.html'), (err2, data2) => {
+          if (err2) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('Not found');
+          } else {
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(data2);
+          }
+        });
+        return;
+      }
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not found');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
+  });
+}
+
+function pathSep() {
+  return process.platform === 'win32' ? '\\' : '/';
+}
+
+const httpServer = createServer((req, res) => {
+  if (HAS_DIST) {
+    serveStatic(req, res);
+  } else {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('Not found');
+  }
+});
+
+// In development the page (Vite:5173) and the socket server (3000) are on
+// different origins, so allow any localhost origin. In production they share
+// one origin, so CORS is not needed.
+const isDev = process.env.NODE_ENV !== 'production';
 const io = new Server(httpServer, {
-  cors: {
+  cors: isDev ? {
     origin: (origin, callback) => {
       if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
         callback(null, true);
@@ -12,7 +102,7 @@ const io = new Server(httpServer, {
       }
     },
     methods: ['GET', 'POST']
-  }
+  } : false
 });
 
 // Spawn points around the arena (feet positions)
@@ -522,9 +612,9 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[SERVER] listening on ${PORT}`);
-  console.log(`CORS enabled for any localhost origin`);
+  if (isDev) console.log(`CORS enabled for any localhost origin`);
 });
 
 // Need THREE.Vector3 for math - use a minimal inline version
