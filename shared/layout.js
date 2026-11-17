@@ -63,12 +63,14 @@ export function generateLayout({ halfSize, seed, spawnPoints, counts }) {
         z = Math.max(-margin, Math.min(margin, z));
 
         let scale;
-        if (type === 'rock') {
+        if (type === 'crate') {
+          scale = 1;
+        } else if (type === 'rock') {
           scale = 1.5 + rand() * 1.5;
         } else {
           scale = 0.9 + rand() * 0.4;
         }
-        const r = type === 'rock' ? 2.5 * scale : type === 'tree' ? 4 * scale : radiusByType[type];
+        const r = type === 'crate' ? 2.0 : type === 'rock' ? 2.5 * scale : type === 'tree' ? 4 * scale : radiusByType[type];
 
         let ok = true;
         for (const p of placed) {
@@ -90,7 +92,7 @@ export function generateLayout({ halfSize, seed, spawnPoints, counts }) {
           }
         }
         if (ok) {
-          accepted = { type, x, z, r, rotY: rand() * Math.PI * 2, scale };
+          accepted = { type, x, z, r, rotY: type === 'crate' ? 0 : rand() * Math.PI * 2, scale };
         }
       }
       if (accepted) placed.push(accepted);

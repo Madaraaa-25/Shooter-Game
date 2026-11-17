@@ -452,9 +452,22 @@ export async function addSceneryFromLayout(scene, layout) {
     } else if (obj.type === 'tree') {
       if (!treeModel) continue;
       const clone = treeModel.clone(true);
-      scaleModel(clone, obj.scale);
+
+      // Compute bounding box BEFORE scaling to get original height
+      const boxBefore = new THREE.Box3().setFromObject(clone);
+      const originalHeight = boxBefore.max.y - boxBefore.min.y;
+
+      if (originalHeight > 0) {
+        const uniformScale = (8 * obj.scale) / originalHeight;
+        clone.scale.setScalar(uniformScale);
+      }
+
       clone.rotation.y = obj.rotY;
-      clone.position.set(obj.x, 0, obj.z);
+
+      // Recompute bounding box AFTER scaling and set position.y so bottom sits on ground
+      const boxAfter = new THREE.Box3().setFromObject(clone);
+      clone.position.set(obj.x, -boxAfter.min.y, obj.z);
+
       setShadows(clone);
       scene.add(clone);
     }

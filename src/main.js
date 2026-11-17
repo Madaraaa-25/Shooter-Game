@@ -4,7 +4,7 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 // Exposed before controls.js is imported so its click handler can gate on it
 window.__fpsCurrentScreen = 'lobby';
 
-import { createArena } from './arena.js';
+import { createArena, addCratesFromLayout } from './arena.js';
 import { PlayerControls } from './controls.js';
 import { ShootingSystem } from './shooting.js';
 import { TargetSystem } from './targets.js';
@@ -65,14 +65,14 @@ dirLight.position.copy(sun.clone().multiplyScalar(60));
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.set(2048, 2048);
 dirLight.shadow.camera.near = 0.5;
-dirLight.shadow.camera.far = 300;
-const shadowExtent = 45;
-dirLight.shadow.camera.left = -shadowExtent;
-dirLight.shadow.camera.right = shadowExtent;
-dirLight.shadow.camera.top = shadowExtent;
-dirLight.shadow.camera.bottom = -shadowExtent;
+dirLight.shadow.camera.far = ARENA_HALF_SIZE * 4;
+dirLight.shadow.camera.left = -ARENA_HALF_SIZE * 1.2;
+dirLight.shadow.camera.right = ARENA_HALF_SIZE * 1.2;
+dirLight.shadow.camera.top = ARENA_HALF_SIZE * 1.2;
+dirLight.shadow.camera.bottom = -ARENA_HALF_SIZE * 1.2;
 dirLight.shadow.bias = -0.0004;
 dirLight.shadow.normalBias = 0.02;
+dirLight.shadow.camera.updateProjectionMatrix();
 scene.add(dirLight);
 
 // Ocean water around the arena (cheap plane with animated normal map)
@@ -321,9 +321,10 @@ const coverPositions = [
 ];
 
 // Add scenery (trees/rocks/hut) from the shared seeded layout.
-// Crate and palm counts are 0 for now (they are skipped by addSceneryFromLayout).
-const layout = generateLayout({ halfSize: ARENA_HALF_SIZE, seed: 12345, spawnPoints, counts: { crate: 0, palm: 0 } });
+// Only palms are skipped here; crates use the default count of 16.
+const layout = generateLayout({ halfSize: ARENA_HALF_SIZE, seed: 12345, spawnPoints, counts: { palm: 0 } });
 addSceneryFromLayout(scene, layout);
+addCratesFromLayout(scene, layout, collidables);
 
 // Create Player Controls
 const playerControls = new PlayerControls(camera, document.body, collidables);

@@ -1,5 +1,47 @@
 import * as THREE from 'three';
-import { ARENA_HALF_SIZE } from '../shared/config.js';
+import { ARENA_HALF_SIZE, CRATE_SIZE, CRATE_HEIGHT } from '../shared/config.js';
+
+// Shared crate textures (same wood material the old fixed crates used)
+const crateLoader = new THREE.TextureLoader();
+const crateColorMap = crateLoader.load('/textures/crate_color.jpg', () => {
+  crateColorMap.wrapS = THREE.RepeatWrapping;
+  crateColorMap.wrapT = THREE.RepeatWrapping;
+  crateColorMap.colorSpace = THREE.SRGBColorSpace;
+  crateColorMap.anisotropy = 4;
+});
+const crateNormalMap = crateLoader.load('/textures/crate_normal.jpg', () => {
+  crateNormalMap.wrapS = THREE.RepeatWrapping;
+  crateNormalMap.wrapT = THREE.RepeatWrapping;
+  crateNormalMap.anisotropy = 4;
+});
+
+const baseMaterialParams = {
+  color: 0xcfa97a,
+  roughness: 0.85,
+  metalness: 0.0,
+  normalScale: new THREE.Vector2(0.6, 0.6)
+};
+
+function createCrateMaterial() {
+  const material = new THREE.MeshStandardMaterial(baseMaterialParams);
+  if (crateColorMap) {
+    material.map = crateColorMap.clone();
+    material.map.repeat.set(CRATE_SIZE / 2, CRATE_SIZE / 2);
+    material.map.wrapS = THREE.RepeatWrapping;
+    material.map.wrapT = THREE.RepeatWrapping;
+    material.map.colorSpace = THREE.SRGBColorSpace;
+    material.map.anisotropy = 4;
+  }
+  if (crateNormalMap) {
+    material.normalMap = crateNormalMap.clone();
+    material.normalMap.repeat.set(CRATE_SIZE / 2, CRATE_SIZE / 2);
+    material.normalMap.wrapS = THREE.RepeatWrapping;
+    material.normalMap.wrapT = THREE.RepeatWrapping;
+    material.normalMap.anisotropy = 4;
+  }
+  material.needsUpdate = true;
+  return material;
+}
 
 export function createArena(scene, dirLight) {
   const collidables = [];
@@ -77,67 +119,22 @@ export function createArena(scene, dirLight) {
     collidables.push(wall);
   });
 
-  // Box obstacles
-  // Base material settings (textures loaded once, shared)
-  const crateLoader = new THREE.TextureLoader();
-  const crateColorMap = crateLoader.load('/textures/crate_color.jpg', () => {
-    crateColorMap.wrapS = THREE.RepeatWrapping;
-    crateColorMap.wrapT = THREE.RepeatWrapping;
-    crateColorMap.colorSpace = THREE.SRGBColorSpace;
-    crateColorMap.anisotropy = 4;
-  });
-  const crateNormalMap = crateLoader.load('/textures/crate_normal.jpg', () => {
-    crateNormalMap.wrapS = THREE.RepeatWrapping;
-    crateNormalMap.wrapT = THREE.RepeatWrapping;
-    crateNormalMap.anisotropy = 4;
-  });
-
-  const baseMaterialParams = {
-    color: 0xcfa97a,
-    roughness: 0.85,
-    metalness: 0.0,
-    normalScale: new THREE.Vector2(0.6, 0.6)
-  };
-
-  const obstacles = [
-    { x: -10, y: 1.5, z: -10, w: 3, h: 3, d: 3 },
-    { x: 10, y: 2, z: -5, w: 4, h: 4, d: 4 },
-    { x: 0, y: 1, z: 12, w: 6, h: 2, d: 2 },
-    { x: -12, y: 2.5, z: 8, w: 5, h: 5, d: 2 },
-    { x: 15, y: 1.5, z: 12, w: 3, h: 3, d: 6 }
-  ];
-
-  obstacles.forEach((obs) => {
-    const geo = new THREE.BoxGeometry(obs.w, obs.h, obs.d);
-
-    // Create material per crate with repeat based on crate size (~2 world units per tile)
-    const material = new THREE.MeshStandardMaterial(baseMaterialParams);
-    if (crateColorMap) {
-      material.map = crateColorMap.clone();
-      material.map.repeat.set(obs.w / 2, obs.d / 2);
-      material.map.wrapS = THREE.RepeatWrapping;
-      material.map.wrapT = THREE.RepeatWrapping;
-      material.map.colorSpace = THREE.SRGBColorSpace;
-      material.map.anisotropy = 4;
-    }
-    if (crateNormalMap) {
-      material.normalMap = crateNormalMap.clone();
-      material.normalMap.repeat.set(obs.w / 2, obs.d / 2);
-      material.normalMap.wrapS = THREE.RepeatWrapping;
-      material.normalMap.wrapT = THREE.RepeatWrapping;
-      material.normalMap.anisotropy = 4;
-    }
-    material.needsUpdate = true;
-
-    const mesh = new THREE.Mesh(geo, material);
-    mesh.position.set(obs.x, obs.y, obs.z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-    collidables.push(mesh);
-  });
-
   // Lighting is provided by the scene setup (sky, hemisphere, sun).
-  // Floor receives shadows; walls and cover objects cast and receive.
+  // Floor receives shadows; walls and crates cast and receive.
   return collidables;
+}
+
+export function addCratesFromLayout(scene, layout, collidables) {
+  for (const obj of layout) {
+    if (obj.type !== 'crate') continue;
+
+    const geo = new THREE.BoxGeometry(CRATE_SIZE, CRATE_HEIGHT, CRATE_SIZE);
+    const material = createCrateMaterial();
+    const crate = new THREE.Mesh(geo, material);
+    crate.position.set(obj.x, CRATE_HEIGHT / 2, obj.z);
+    crate.castShadow = true;
+    crate.receiveShadow = true;
+    scene.add(crate);
+    collidables.push(crate);
+  }
 }
