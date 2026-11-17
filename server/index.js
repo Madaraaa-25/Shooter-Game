@@ -3,6 +3,7 @@ import { Server } from 'socket.io';
 import { readFile, readdirSync } from 'fs';
 import { extname, join, normalize, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { ARENA_HALF_SIZE } from '../shared/config.js';
 
 // Directory this file lives in, so we can locate dist/ relative to it.
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -105,18 +106,14 @@ const io = new Server(httpServer, {
   } : false
 });
 
-// Spawn points around the arena (feet positions)
+// Spawn points around the arena (feet positions), scaled from base ARENA_HALF_SIZE = 30
+const S = ARENA_HALF_SIZE / 30;
 const spawnPoints = [
-  { x: -15, y: 0, z: -15 },
-  { x: 15, y: 0, z: -15 },
-  { x: -15, y: 0, z: 15 },
-  { x: 15, y: 0, z: 15 },
-  { x: 0, y: 0, z: -20 },
-  { x: 0, y: 0, z: 20 },
-  { x: -20, y: 0, z: 0 },
-  { x: 20, y: 0, z: 0 },
-  { x: -10, y: 0, z: 5 },
-  { x: 10, y: 0, z: -5 }
+  { x: -15 * S, y: 0, z: -15 * S }, { x: 15 * S, y: 0, z: -15 * S },
+  { x: -15 * S, y: 0, z: 15 * S }, { x: 15 * S, y: 0, z: 15 * S },
+  { x: 0, y: 0, z: -20 * S }, { x: 0, y: 0, z: 20 * S },
+  { x: -20 * S, y: 0, z: 0 }, { x: 20 * S, y: 0, z: 0 },
+  { x: -10 * S, y: 0, z: 5 * S }, { x: 10 * S, y: 0, z: -5 * S }
 ];
 
 // Weapon range constant (server only)

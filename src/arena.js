@@ -1,10 +1,11 @@
 import * as THREE from 'three';
+import { ARENA_HALF_SIZE } from '../shared/config.js';
 
 export function createArena(scene, dirLight) {
   const collidables = [];
 
   // Floor material & mesh
-  const floorSize = 60;
+  const floorSize = ARENA_HALF_SIZE * 2;
   const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
 
   // Base material (fallback color if textures fail)

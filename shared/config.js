@@ -1,0 +1,1 @@
+export const ARENA_HALF_SIZE = 30;

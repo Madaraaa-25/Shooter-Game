@@ -14,6 +14,7 @@ import { OtherPlayersManager } from './otherPlayers.js';
 import { addSceneryFromLayout } from './scenery.js';
 import { generateLayout } from '../shared/layout.js';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT } from './constants.js';
+import { ARENA_HALF_SIZE } from '../shared/config.js';
 
 // Setup Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -137,8 +138,8 @@ ocean.receiveShadow = false;
 ocean.castShadow = false;
 scene.add(ocean);
 
-// Arena floor size from arena.js (floorSize = 60)
-const FLOOR_SIZE = 60;
+// Arena floor size from shared config
+const FLOOR_SIZE = ARENA_HALF_SIZE * 2;
 const HALF = FLOOR_SIZE / 2;
 
 // Shallow water ring (~14 units wide) at y = -0.25
@@ -321,7 +322,7 @@ const coverPositions = [
 
 // Add scenery (trees/rocks/hut) from the shared seeded layout.
 // Crate and palm counts are 0 for now (they are skipped by addSceneryFromLayout).
-const layout = generateLayout({ halfSize: 30, seed: 12345, spawnPoints, counts: { crate: 0, palm: 0 } });
+const layout = generateLayout({ halfSize: ARENA_HALF_SIZE, seed: 12345, spawnPoints, counts: { crate: 0, palm: 0 } });
 addSceneryFromLayout(scene, layout);
 
 // Create Player Controls
