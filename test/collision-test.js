@@ -1,0 +1,81 @@
+import { buildCollisionShapes, resolveCollisions } from '../shared/collision.js';
+
+const layout = [
+  { type: 'rock', x: 10, z: 0, r: 4, rotY: 0, scale: 1.6 },
+  { type: 'tree', x: -10, z: 0, r: 6, rotY: 0, scale: 1.5 },
+  { type: 'palm', x: 0, z: 10, r: 2.5, rotY: 0, scale: 1 },
+  { type: 'hut', x: 0, z: -10, r: 7, rotY: 0, scale: 1 },
+  { type: 'crate', x: 20, z: 20, r: 2, rotY: 0, scale: 1 },
+];
+const pr = 0.4;
+const shapes = buildCollisionShapes(layout);
+
+let failed = false;
+function check(name, cond) {
+  console.log((cond ? 'PASS' : 'FAIL') + ': ' + name);
+  if (!cond) failed = true;
+}
+
+// 1. Far point unchanged.
+{
+  const r = resolveCollisions(shapes, 40, -40, 0, pr);
+  check('far point unchanged', r.x === 40 && r.z === -40);
+}
+
+// 2. Rock centre pushed out: distance from (10,0) >= 3.2 + 0.4 - 0.01.
+{
+  const r = resolveCollisions(shapes, 10, 0.5, 0, pr);
+  const d = Math.hypot(r.x - 10, r.z - 0);
+  check('rock centre pushed out', d >= 3.2 + 0.4 - 0.01);
+}
+
+// 3. Tree trunk point pushed out: distance from (-10,0) >= 1.2 + 0.4 - 0.01.
+{
+  const r = resolveCollisions(shapes, -10.3, 0.2, 0, pr);
+  const d = Math.hypot(r.x - (-10), r.z - 0);
+  check('tree trunk pushed out', d >= 1.2 + 0.4 - 0.01);
+}
+
+// 4. Palm trunk point pushed out: distance from (0,10) >= 0.5 + 0.4 - 0.01.
+{
+  const r = resolveCollisions(shapes, 0.1, 10.1, 0, pr);
+  const d = Math.hypot(r.x - 0, r.z - 10);
+  check('palm trunk pushed out', d >= 0.5 + 0.4 - 0.01);
+}
+
+// 5. Hut box point pushed out: |x| >= 2.5 + 0.4 - 0.01.
+{
+  const r = resolveCollisions(shapes, 1, -10, 0, pr);
+  check('hut box pushed out', Math.abs(r.x) >= 2.5 + 0.4 - 0.01);
+}
+
+// 6. Crate point pushed out: |dx| or |dz| >= 1.2 + 0.4 - 0.01.
+{
+  const r = resolveCollisions(shapes, 20.5, 20.5, 0, pr);
+  const dx = Math.abs(r.x - 20);
+  const dz = Math.abs(r.z - 20);
+  check('crate pushed out', dx >= 1.2 + 0.4 - 0.01 || dz >= 1.2 + 0.4 - 0.01);
+}
+
+// 7. Crate point with y=1.2 (standing on top) unchanged.
+{
+  const r = resolveCollisions(shapes, 20.5, 20.5, 1.2, pr);
+  check('crate top unchanged', r.x === 20.5 && r.z === 20.5);
+}
+
+// 8. Tree trunk point with y=101 unchanged.
+{
+  const r = resolveCollisions(shapes, -10.3, 0.2, 101, pr);
+  check('tree high unchanged', r.x === -10.3 && r.z === 0.2);
+}
+
+// 9. Palm centre does not return NaN.
+{
+  const r = resolveCollisions(shapes, 0, 10, 0, pr);
+  check('palm centre no NaN', Number.isFinite(r.x) && Number.isFinite(r.z));
+}
+
+if (!failed) {
+  console.log('ALL COLLISION TESTS PASSED');
+}
+process.exitCode = failed ? 1 : 0;
