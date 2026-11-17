@@ -11,6 +11,7 @@ import { TargetSystem } from './targets.js';
 import { UI } from './ui.js';
 import { NetworkManager } from './network.js';
 import { OtherPlayersManager } from './otherPlayers.js';
+import { addScenery } from './scenery.js';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT } from './constants.js';
 
 // Setup Renderer
@@ -305,6 +306,20 @@ camera.position.set(0, PLAYER_EYE_HEIGHT, 0);
 
 // Create 3D Arena (walls/obstacles cast+receive, floor receives)
 const collidables = createArena(scene, dirLight);
+
+// Spawn points and cover positions (match server constants)
+const spawnPoints = [
+  { x: -15, z: -15 }, { x: 15, z: -15 }, { x: -15, z: 15 }, { x: 15, z: 15 },
+  { x: 0, z: -20 }, { x: 0, z: 20 }, { x: -20, z: 0 }, { x: 20, z: 0 },
+  { x: -10, z: 5 }, { x: 10, z: -5 }
+];
+const coverPositions = [
+  { x: -10, z: -10 }, { x: 10, z: -5 }, { x: 0, z: 12 },
+  { x: -12, z: 8 }, { x: 15, z: 12 }
+];
+
+// Add scenery (trees/rocks) - does not affect collidables
+addScenery(scene, 30, spawnPoints, coverPositions);
 
 // Create Player Controls
 const playerControls = new PlayerControls(camera, document.body, collidables);
