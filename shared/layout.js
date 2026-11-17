@@ -5,11 +5,11 @@ export function generateLayout({ halfSize, seed, spawnPoints, counts }) {
   const rand = mulberry32(seed);
 
   const radiusByType = {
-    hut: 5,
+    hut: 7,
     crate: 1.2,
-    tree: 1.2,
-    palm: 0.8,
-    rock: null, // computed per-object from its scale
+    tree: null, // 4 times its scale
+    palm: 2.5,
+    rock: null, // 2.5 times its scale
   };
 
   const edgeMargin = {
@@ -68,7 +68,7 @@ export function generateLayout({ halfSize, seed, spawnPoints, counts }) {
         } else {
           scale = 0.9 + rand() * 0.4;
         }
-        const r = type === 'rock' ? 2 * scale : radiusByType[type];
+        const r = type === 'rock' ? 2.5 * scale : type === 'tree' ? 4 * scale : radiusByType[type];
 
         let ok = true;
         for (const p of placed) {

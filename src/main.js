@@ -11,7 +11,8 @@ import { TargetSystem } from './targets.js';
 import { UI } from './ui.js';
 import { NetworkManager } from './network.js';
 import { OtherPlayersManager } from './otherPlayers.js';
-import { addScenery, addHut } from './scenery.js';
+import { addSceneryFromLayout } from './scenery.js';
+import { generateLayout } from '../shared/layout.js';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT } from './constants.js';
 
 // Setup Renderer
@@ -318,9 +319,10 @@ const coverPositions = [
   { x: -12, z: 8 }, { x: 15, z: 12 }
 ];
 
-// Add scenery (trees/rocks/hut) - does not affect collidables
-const hutPos = addHut(scene, 30, spawnPoints, coverPositions);
-addScenery(scene, 30, spawnPoints, coverPositions, [hutPos]);
+// Add scenery (trees/rocks/hut) from the shared seeded layout.
+// Crate and palm counts are 0 for now (they are skipped by addSceneryFromLayout).
+const layout = generateLayout({ halfSize: 30, seed: 12345, spawnPoints, counts: { crate: 0, palm: 0 } });
+addSceneryFromLayout(scene, layout);
 
 // Create Player Controls
 const playerControls = new PlayerControls(camera, document.body, collidables);

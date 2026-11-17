@@ -103,7 +103,7 @@ function createThatchTexture() {
   return tex;
 }
 
-export function addHut(scene, arenaHalfSize, spawnPoints, coverPositions, extraExcludes = []) {
+export function buildHut() {
   const crateLoader = new THREE.TextureLoader();
   const crateColorMap = crateLoader.load('/textures/crate_color.jpg', () => {
     crateColorMap.wrapS = THREE.RepeatWrapping;
@@ -232,6 +232,12 @@ export function addHut(scene, arenaHalfSize, spawnPoints, coverPositions, extraE
   roof.castShadow = true;
   roof.receiveShadow = true;
   hut.add(roof);
+
+  return hut;
+}
+
+export function addHut(scene, arenaHalfSize, spawnPoints, coverPositions, extraExcludes = []) {
+  const hut = buildHut();
 
   // Find valid position: right side (positive x), near edge, door facing center
   // Keep at least 4 units from arena edge so it's not in water
@@ -392,4 +398,66 @@ export async function addScenery(scene, arenaHalfSize, spawnPoints, coverPositio
 
   scene.add(scenery);
   return scenery;
+}
+
+export async function addSceneryFromLayout(scene, layout) {
+  const loader = new GLTFLoader();
+
+  const [treeGltf, rockGltf] = await Promise.allSettled([
+    loader.loadAsync('/models/tree1.glb'),
+    loader.loadAsync('/models/rock1.glb')
+  ]);
+
+  const treeModel = treeGltf.status === 'fulfilled' ? treeGltf.value.scene : null;
+  const rockModel = rockGltf.status === 'fulfilled' ? rockGltf.value.scene : null;
+
+  if (!treeModel) console.warn('[SCENERY] tree1.glb failed to load');
+  if (!rockModel) console.warn('[SCENERY] rock1.glb failed to load');
+
+  function scaleModel(model, targetHeight) {
+    const box = new THREE.Box3().setFromObject(model);
+    const height = box.max.y - box.min.y;
+    if (height > 0) {
+      const scale = targetHeight / height;
+      model.scale.setScalar(scale);
+    }
+  }
+
+  function setShadows(model) {
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+  }
+
+  for (const obj of layout) {
+    if (obj.type === 'hut') {
+      const hut = buildHut();
+      hut.position.set(obj.x, 0, obj.z);
+      hut.rotation.y = Math.atan2(obj.x, obj.z) + Math.PI;
+      hut.scale.setScalar(obj.scale);
+      scene.add(hut);
+    } else if (obj.type === 'rock') {
+      if (!rockModel) continue;
+      const clone = rockModel.clone(true);
+      scaleModel(clone, obj.scale);
+      clone.rotation.y = obj.rotY;
+      clone.rotation.x = randRange(-0.1, 0.1);
+      clone.rotation.z = randRange(-0.1, 0.1);
+      clone.position.set(obj.x, 0, obj.z);
+      setShadows(clone);
+      scene.add(clone);
+    } else if (obj.type === 'tree') {
+      if (!treeModel) continue;
+      const clone = treeModel.clone(true);
+      scaleModel(clone, obj.scale);
+      clone.rotation.y = obj.rotY;
+      clone.position.set(obj.x, 0, obj.z);
+      setShadows(clone);
+      scene.add(clone);
+    }
+    // crate and palm are skipped for now
+  }
 }
