@@ -75,6 +75,27 @@ function check(name, cond) {
   check('palm centre no NaN', Number.isFinite(r.x) && Number.isFinite(r.z));
 }
 
+// 10. Rotated box side clear.
+{
+  const shapes2 = { circles: [], boxes: [{ x: 0, z: 0, hx: 3, hz: 1, rotY: Math.PI / 2, height: 100 }] };
+  const r = resolveCollisions(shapes2, 2, 0, 0, pr);
+  check('rotated box side clear', r.x === 2 && r.z === 0);
+}
+
+// 11. Rotated box pushed sideways.
+{
+  const shapes2 = { circles: [], boxes: [{ x: 0, z: 0, hx: 3, hz: 1, rotY: Math.PI / 2, height: 100 }] };
+  const r = resolveCollisions(shapes2, 0.3, 2, 0, pr);
+  check('rotated box pushed sideways', r.x >= 1.4 - 0.01);
+}
+
+// 12. Rotated box pushed from end.
+{
+  const shapes2 = { circles: [], boxes: [{ x: 0, z: 0, hx: 3, hz: 1, rotY: Math.PI / 2, height: 100 }] };
+  const r = resolveCollisions(shapes2, 0.3, 3.2, 0, pr);
+  check('rotated box pushed from end', r.z >= 3.4 - 0.01);
+}
+
 if (!failed) {
   console.log('ALL COLLISION TESTS PASSED');
 }

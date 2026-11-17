@@ -37,13 +37,22 @@ export function resolveCollisions(shapes, x, z, y, pr) {
   }
   for (const b of shapes.boxes) {
     if (y >= b.height) continue;
+    const rot = b.rotY || 0;
+    const cos = Math.cos(rot);
+    const sin = Math.sin(rot);
     const dx = x - b.x;
     const dz = z - b.z;
-    const ox = b.hx + pr - Math.abs(dx);
-    const oz = b.hz + pr - Math.abs(dz);
+    const lx = dx * cos - dz * sin;
+    const lz = dx * sin + dz * cos;
+    const ox = b.hx + pr - Math.abs(lx);
+    const oz = b.hz + pr - Math.abs(lz);
     if (ox > 0 && oz > 0) {
-      if (ox < oz) x += dx >= 0 ? ox : -ox;
-      else z += dz >= 0 ? oz : -oz;
+      let nlx = lx;
+      let nlz = lz;
+      if (ox < oz) nlx += lx >= 0 ? ox : -ox;
+      else nlz += lz >= 0 ? oz : -oz;
+      x = b.x + nlx * cos + nlz * sin;
+      z = b.z - nlx * sin + nlz * cos;
     }
   }
   return { x, z };

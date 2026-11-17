@@ -13,6 +13,7 @@ import { NetworkManager } from './network.js';
 import { OtherPlayersManager } from './otherPlayers.js';
 import { addSceneryFromLayout } from './scenery.js';
 import { generateLayout } from '../shared/layout.js';
+import { buildCollisionShapes } from '../shared/collision.js';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT } from './constants.js';
 import { ARENA_HALF_SIZE, SPAWN_POINTS } from '../shared/config.js';
 
@@ -318,11 +319,12 @@ const coverPositions = [
 // Add scenery (trees/rocks/hut) from the shared seeded layout.
 // Only palms are skipped here; crates use the default count of 16.
 const layout = generateLayout({ halfSize: ARENA_HALF_SIZE, seed: 12345, spawnPoints: SPAWN_POINTS, counts: {} });
+const collisionShapes = buildCollisionShapes(layout);
 addSceneryFromLayout(scene, layout);
 addCratesFromLayout(scene, layout, collidables);
 
 // Create Player Controls
-const playerControls = new PlayerControls(camera, document.body, collidables);
+const playerControls = new PlayerControls(camera, document.body, collidables, collisionShapes);
 
 // Create UI
 const ui = new UI();

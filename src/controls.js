@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT, PLAYER_BODY_RADIUS } from './constants.js';
+import { resolveCollisions } from '../shared/collision.js';
 
 export class PlayerControls {
-  constructor(camera, domElement, collidables) {
+  constructor(camera, domElement, collidables, collisionShapes) {
     this.camera = camera;
     this.domElement = domElement;
     this.collidables = collidables;
+    this.collisionShapes = collisionShapes;
 
     this.moveForward = false;
     this.moveBackward = false;
@@ -167,6 +169,14 @@ export class PlayerControls {
     // Apply horizontal movement
     this.camera.position.addScaledVector(forward, -this.velocity.z * delta);
     this.camera.position.addScaledVector(right, -this.velocity.x * delta);
+
+    // Shared collision shapes (trees/rocks/palms/huts/crates)
+    if (this.collisionShapes) {
+      const feetY = this.camera.position.y - PLAYER_EYE_HEIGHT;
+      const fixed = resolveCollisions(this.collisionShapes, this.camera.position.x, this.camera.position.z, feetY, this.playerRadius);
+      this.camera.position.x = fixed.x;
+      this.camera.position.z = fixed.z;
+    }
 
     // Wall / Obstacle Collision (Horizontal)
     this.checkHorizontalCollisions(oldPosition);

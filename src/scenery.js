@@ -480,6 +480,7 @@ export async function addSceneryFromLayout(scene, layout) {
     });
   }
 
+  let rockDebugCount = 0;
   for (const obj of layout) {
     if (obj.type === 'hut') {
       const hut = buildHut();
@@ -491,6 +492,11 @@ export async function addSceneryFromLayout(scene, layout) {
       if (!rockModel) continue;
       const clone = rockModel.clone(true);
       scaleModel(clone, obj.scale);
+      if (rockDebugCount < 4) {
+        const size = new THREE.Box3().setFromObject(clone).getSize(new THREE.Vector3());
+        console.error('[ROCK-BBOX] scale=' + obj.scale.toFixed(2) + ' r=' + obj.r.toFixed(2) + ' w=' + size.x.toFixed(2) + ' h=' + size.y.toFixed(2) + ' d=' + size.z.toFixed(2));
+        rockDebugCount++;
+      }
       clone.rotation.y = obj.rotY;
       clone.rotation.x = randRange(-0.1, 0.1);
       clone.rotation.z = randRange(-0.1, 0.1);
