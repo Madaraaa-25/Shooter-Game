@@ -6,9 +6,9 @@ export function generateLayout({ halfSize, seed, spawnPoints, counts }) {
 
   const radiusByType = {
     hut: 7,
+    palm: 2.5,
     crate: 1.2,
     tree: null, // 4 times its scale
-    palm: 2.5,
     rock: null, // 2.5 times its scale
   };
 
