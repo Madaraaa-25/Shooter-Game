@@ -77,11 +77,26 @@ export function createArena(scene, dirLight) {
   });
 
   // Box obstacles
-  const boxMaterial = new THREE.MeshStandardMaterial({
-    color: 0x9c6b3c,
-    roughness: 0.6,
-    metalness: 0.0
+  // Base material settings (textures loaded once, shared)
+  const crateLoader = new THREE.TextureLoader();
+  const crateColorMap = crateLoader.load('/textures/crate_color.jpg', () => {
+    crateColorMap.wrapS = THREE.RepeatWrapping;
+    crateColorMap.wrapT = THREE.RepeatWrapping;
+    crateColorMap.colorSpace = THREE.SRGBColorSpace;
+    crateColorMap.anisotropy = 4;
   });
+  const crateNormalMap = crateLoader.load('/textures/crate_normal.jpg', () => {
+    crateNormalMap.wrapS = THREE.RepeatWrapping;
+    crateNormalMap.wrapT = THREE.RepeatWrapping;
+    crateNormalMap.anisotropy = 4;
+  });
+
+  const baseMaterialParams = {
+    color: 0xcfa97a,
+    roughness: 0.85,
+    metalness: 0.0,
+    normalScale: new THREE.Vector2(0.6, 0.6)
+  };
 
   const obstacles = [
     { x: -10, y: 1.5, z: -10, w: 3, h: 3, d: 3 },
@@ -93,7 +108,27 @@ export function createArena(scene, dirLight) {
 
   obstacles.forEach((obs) => {
     const geo = new THREE.BoxGeometry(obs.w, obs.h, obs.d);
-    const mesh = new THREE.Mesh(geo, boxMaterial);
+
+    // Create material per crate with repeat based on crate size (~2 world units per tile)
+    const material = new THREE.MeshStandardMaterial(baseMaterialParams);
+    if (crateColorMap) {
+      material.map = crateColorMap.clone();
+      material.map.repeat.set(obs.w / 2, obs.d / 2);
+      material.map.wrapS = THREE.RepeatWrapping;
+      material.map.wrapT = THREE.RepeatWrapping;
+      material.map.colorSpace = THREE.SRGBColorSpace;
+      material.map.anisotropy = 4;
+    }
+    if (crateNormalMap) {
+      material.normalMap = crateNormalMap.clone();
+      material.normalMap.repeat.set(obs.w / 2, obs.d / 2);
+      material.normalMap.wrapS = THREE.RepeatWrapping;
+      material.normalMap.wrapT = THREE.RepeatWrapping;
+      material.normalMap.anisotropy = 4;
+    }
+    material.needsUpdate = true;
+
+    const mesh = new THREE.Mesh(geo, material);
     mesh.position.set(obs.x, obs.y, obs.z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
