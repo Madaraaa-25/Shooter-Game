@@ -23,6 +23,9 @@ function dist2(a, b) {
 }
 
 function isValidPosition(x, z, spawnPoints, coverPositions, extraExcludes = []) {
+  if (!Array.isArray(extraExcludes)) {
+    extraExcludes = extraExcludes ? [extraExcludes] : [];
+  }
   // Check distance from spawn points
   for (const sp of spawnPoints) {
     if (dist2({ x, z }, sp) < 36) return false; // 6^2
@@ -31,9 +34,9 @@ function isValidPosition(x, z, spawnPoints, coverPositions, extraExcludes = []) 
   for (const cp of coverPositions) {
     if (dist2({ x, z }, cp) < 16) return false; // 4^2
   }
-  // Check extra exclusions (rocks, trees, etc.)
+  // Check extra exclusions (rocks, trees, hut, etc.) - 9 units
   for (const ex of extraExcludes) {
-    if (dist2({ x, z }, ex) < 64) return false; // 8^2
+    if (dist2({ x, z }, ex) < 81) return false; // 9^2
   }
   return true;
 }
@@ -280,10 +283,13 @@ export function addHut(scene, arenaHalfSize, spawnPoints, coverPositions, extraE
   }
 
   scene.add(hut);
-  return hut;
+  return { x: hut.position.x, z: hut.position.z };
 }
 
-export async function addScenery(scene, arenaHalfSize, spawnPoints, coverPositions) {
+export async function addScenery(scene, arenaHalfSize, spawnPoints, coverPositions, extraExcludes = []) {
+  if (!Array.isArray(extraExcludes)) {
+    extraExcludes = extraExcludes ? [extraExcludes] : [];
+  }
   const loader = new GLTFLoader();
 
   // Load models
@@ -323,7 +329,7 @@ export async function addScenery(scene, arenaHalfSize, spawnPoints, coverPositio
         z = randRange(-outerBand, outerBand);
         attempts++;
         if (attempts > 50) break;
-      } while (!isValidPosition(x, z, spawnPoints, coverPositions));
+      } while (!isValidPosition(x, z, spawnPoints, coverPositions, extraExcludes));
 
       if (attempts <= 50) {
         const clone = treeModel.clone(true);
@@ -355,7 +361,7 @@ export async function addScenery(scene, arenaHalfSize, spawnPoints, coverPositio
       const cx = randRange(-outerBand, outerBand);
       const cz = randRange(-outerBand, outerBand);
 
-      if (!isValidPosition(cx, cz, spawnPoints, coverPositions)) continue;
+      if (!isValidPosition(cx, cz, spawnPoints, coverPositions, extraExcludes)) continue;
 
       for (let i = 0; i < groupSize && placed < 6; i++, placed++) {
         const ox = cx + randRange(-1.5, 1.5);

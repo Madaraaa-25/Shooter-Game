@@ -11,7 +11,7 @@ import { TargetSystem } from './targets.js';
 import { UI } from './ui.js';
 import { NetworkManager } from './network.js';
 import { OtherPlayersManager } from './otherPlayers.js';
-import { addScenery } from './scenery.js';
+import { addScenery, addHut } from './scenery.js';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT } from './constants.js';
 
 // Setup Renderer
@@ -318,8 +318,9 @@ const coverPositions = [
   { x: -12, z: 8 }, { x: 15, z: 12 }
 ];
 
-// Add scenery (trees/rocks) - does not affect collidables
-addScenery(scene, 30, spawnPoints, coverPositions);
+// Add scenery (trees/rocks/hut) - does not affect collidables
+const hutPos = addHut(scene, 30, spawnPoints, coverPositions);
+addScenery(scene, 30, spawnPoints, coverPositions, [hutPos]);
 
 // Create Player Controls
 const playerControls = new PlayerControls(camera, document.body, collidables);
