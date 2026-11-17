@@ -14,7 +14,7 @@ import { OtherPlayersManager } from './otherPlayers.js';
 import { addSceneryFromLayout } from './scenery.js';
 import { generateLayout } from '../shared/layout.js';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT } from './constants.js';
-import { ARENA_HALF_SIZE } from '../shared/config.js';
+import { ARENA_HALF_SIZE, SPAWN_POINTS } from '../shared/config.js';
 
 // Setup Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -310,11 +310,6 @@ camera.position.set(0, PLAYER_EYE_HEIGHT, 0);
 const collidables = createArena(scene, dirLight);
 
 // Spawn points and cover positions (match server constants)
-const spawnPoints = [
-  { x: -15, z: -15 }, { x: 15, z: -15 }, { x: -15, z: 15 }, { x: 15, z: 15 },
-  { x: 0, z: -20 }, { x: 0, z: 20 }, { x: -20, z: 0 }, { x: 20, z: 0 },
-  { x: -10, z: 5 }, { x: 10, z: -5 }
-];
 const coverPositions = [
   { x: -10, z: -10 }, { x: 10, z: -5 }, { x: 0, z: 12 },
   { x: -12, z: 8 }, { x: 15, z: 12 }
@@ -322,7 +317,7 @@ const coverPositions = [
 
 // Add scenery (trees/rocks/hut) from the shared seeded layout.
 // Only palms are skipped here; crates use the default count of 16.
-const layout = generateLayout({ halfSize: ARENA_HALF_SIZE, seed: 12345, spawnPoints, counts: { palm: 0 } });
+const layout = generateLayout({ halfSize: ARENA_HALF_SIZE, seed: 12345, spawnPoints: SPAWN_POINTS, counts: { palm: 0 } });
 addSceneryFromLayout(scene, layout);
 addCratesFromLayout(scene, layout, collidables);
 
