@@ -15,9 +15,6 @@ const io = new Server(httpServer, {
   }
 });
 
-// Store connected players: Map<socketId, playerData>
-const players = new Map();
-
 // Spawn points around the arena (feet positions)
 const spawnPoints = [
   { x: -15, y: 0, z: -15 },
@@ -42,6 +39,10 @@ const PLAYER_BODY_RADIUS = 0.4;
 const PLAYER_HEAD_RADIUS = 0.25;
 const PLAYER_HEAD_CENTER_OFFSET = 1.7;
 
+// Room constants
+const MAX_PLAYERS_PER_ROOM = 8;
+const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No 0,O,1,I
+
 // Generate random color for player
 function getRandomColor() {
   const colors = [
@@ -53,6 +54,106 @@ function getRandomColor() {
 
 function getRandomSpawnPoint() {
   return spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+}
+
+// Generate a unique 4-character room code
+function generateRoomCode(existingCodes) {
+  let code;
+  do {
+    code = '';
+    for (let i = 0; i < 4; i++) {
+      code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
+    }
+  } while (existingCodes.has(code));
+  return code;
+}
+
+// Room state: Map<roomCode, { players: Map<socketId, playerData>, createdAt: number }>
+const rooms = new Map();
+
+// Get the room a socket is in (or null)
+function getPlayerRoom(socketId) {
+  for (const [code, room] of rooms) {
+    if (room.players.has(socketId)) {
+      return { code, room };
+    }
+  }
+  return null;
+}
+
+// Create a new room with optional specific code
+function createRoom(requestedCode = null) {
+  const code = requestedCode && !rooms.has(requestedCode) ? requestedCode : generateRoomCode(rooms);
+  const room = {
+    players: new Map(),
+    createdAt: Date.now()
+  };
+  rooms.set(code, room);
+  console.log(`[SERVER] room ${code} created`);
+  return { code, room };
+}
+
+// Get or create room for a player
+function joinRoom(socket, roomCode) {
+  const room = rooms.get(roomCode);
+  if (!room) {
+    return { success: false, message: 'Room not found' };
+  }
+  if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
+    return { success: false, message: 'Room full' };
+  }
+
+  const spawn = getRandomSpawnPoint();
+  const playerData = {
+    id: socket.id,
+    position: { x: spawn.x, y: spawn.y, z: spawn.z },
+    rotation: { x: 0, y: 0, z: 0, w: 1 },
+    color: getRandomColor(),
+    health: 100,
+    maxHealth: 100,
+    kills: 0,
+    deaths: 0,
+    isDead: false,
+    respawnTimer: 0
+  };
+
+  room.players.set(socket.id, playerData);
+  socket.join(roomCode);
+
+  console.log(`[SERVER] ${socket.id.slice(0,4)} joined room ${roomCode} (${room.players.size} players)`);
+
+  return { success: true, roomCode, room, playerData };
+}
+
+// Check whether a requested room code is usable (4 chars from ROOM_CODE_CHARS, not already taken)
+function isValidRoomCode(code) {
+  return typeof code === 'string'
+    && code.length === 4
+    && [...code].every((c) => ROOM_CODE_CHARS.includes(c))
+    && !rooms.has(code);
+}
+
+// Remove player from their room, clean up if empty
+function leaveRoom(socketId) {
+  const found = getPlayerRoom(socketId);
+  if (!found) return;
+
+  const { code, room } = found;
+  room.players.delete(socketId);
+
+  // Remove the socket from the Socket.IO room namespace if it still exists
+  const socket = io.sockets.sockets.get(socketId);
+  if (socket) {
+    socket.leave(code);
+  }
+
+  if (room.players.size === 0) {
+    rooms.delete(code);
+    console.log(`[SERVER] room ${code} deleted`);
+  } else {
+    // Notify remaining players in the room
+    io.to(code).emit('playerLeft', { id: socketId });
+  }
 }
 
 // Capsule-ray intersection (server-side hit detection)
@@ -174,9 +275,12 @@ function rayCylinderIntersection(rayOrigin, rayDir, capsulePos, radius, height) 
   return hit;
 }
 
-// Broadcast scoreboard to all players
-function broadcastScoreboard() {
-  const scoreboard = Array.from(players.values()).map(p => ({
+// Broadcast scoreboard to room
+function broadcastScoreboard(roomCode) {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+
+  const scoreboard = Array.from(room.players.values()).map(p => ({
     id: p.id,
     name: p.id.slice(0, 4).toUpperCase(),
     kills: p.kills,
@@ -185,58 +289,125 @@ function broadcastScoreboard() {
     health: p.health,
     isDead: p.isDead
   }));
-  io.emit('scoreboardUpdate', scoreboard);
+  io.to(roomCode).emit('scoreboardUpdate', scoreboard);
 }
 
 io.on('connection', (socket) => {
-  console.log(`[SERVER] connected ${socket.id}, total players: ${players.size + 1}`);
+  console.log(`[SERVER] connected ${socket.id}, total players: ${Array.from(rooms.values()).reduce((sum, r) => sum + r.players.size, 0) + 1}`);
 
-  const spawn = getRandomSpawnPoint();
-  const playerData = {
-    id: socket.id,
-    position: { x: spawn.x, y: spawn.y, z: spawn.z },
-    rotation: { x: 0, y: 0, z: 0, w: 1 },
-    color: getRandomColor(),
-    health: 100,
-    maxHealth: 100,
-    kills: 0,
-    deaths: 0,
-    isDead: false,
-    respawnTimer: 0
-  };
+  // Player not in a room yet - wait for createRoom or joinRoom
 
-  players.set(socket.id, playerData);
+  // Create a room (optional code parameter: plain string or { requestedCode })
+  socket.on('createRoom', (payload) => {
+    // If player already in a room, leave it first
+    const currentRoom = getPlayerRoom(socket.id);
+    if (currentRoom) {
+      leaveRoom(socket.id);
+    }
 
-  // Send current players list to the new player - convert feet to eye position
-  const playersList = Array.from(players.values()).map(p => ({
-    id: p.id,
-    position: { x: p.position.x, y: p.position.y + PLAYER_EYE_HEIGHT, z: p.position.z },
-    rotation: p.rotation,
-    color: p.color,
-    health: p.health,
-    maxHealth: p.maxHealth,
-    kills: p.kills,
-    deaths: p.deaths,
-    isDead: p.isDead
-  }));
-  socket.emit('playersList', playersList);
+    let requestedCode = null;
+    if (typeof payload === 'string') {
+      requestedCode = payload;
+    } else if (payload && typeof payload.requestedCode === 'string') {
+      requestedCode = payload.requestedCode;
+    }
+    if (!isValidRoomCode(requestedCode)) {
+      requestedCode = null;
+    }
 
-  // Broadcast new player to all OTHER clients - convert feet to eye position
-  socket.broadcast.emit('playerJoined', {
-    id: playerData.id,
-    position: { x: playerData.position.x, y: playerData.position.y + PLAYER_EYE_HEIGHT, z: playerData.position.z },
-    rotation: playerData.rotation,
-    color: playerData.color,
-    health: playerData.health,
-    maxHealth: playerData.maxHealth,
-    kills: playerData.kills,
-    deaths: playerData.deaths,
-    isDead: playerData.isDead
+    const result = createRoom(requestedCode);
+    const roomCode = result.code;
+    const room = result.room;
+
+    const spawn = getRandomSpawnPoint();
+    const playerData = {
+      id: socket.id,
+      position: { x: spawn.x, y: spawn.y, z: spawn.z },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+      color: getRandomColor(),
+      health: 100,
+      maxHealth: 100,
+      kills: 0,
+      deaths: 0,
+      isDead: false,
+      respawnTimer: 0
+    };
+
+    room.players.set(socket.id, playerData);
+    socket.join(roomCode);
+
+    // Send current players list to the new player - convert feet to eye position
+    const playersList = Array.from(room.players.values()).map(p => ({
+      id: p.id,
+      position: { x: p.position.x, y: p.position.y + PLAYER_EYE_HEIGHT, z: p.position.z },
+      rotation: p.rotation,
+      color: p.color,
+      health: p.health,
+      maxHealth: p.maxHealth,
+      kills: p.kills,
+      deaths: p.deaths,
+      isDead: p.isDead
+    }));
+    socket.emit('playersList', playersList);
+
+    socket.emit('roomJoined', { roomCode, myId: socket.id });
+
+    console.log(`[SERVER] ${socket.id.slice(0,4)} created and joined room ${roomCode} (${room.players.size} players)`);
+  });
+
+  // Join an existing room
+  socket.on('joinRoom', (roomCode) => {
+    // If player already in a room, leave it first
+    const currentRoom = getPlayerRoom(socket.id);
+    if (currentRoom) {
+      leaveRoom(socket.id);
+    }
+
+    const result = joinRoom(socket, roomCode);
+    if (!result.success) {
+      socket.emit('roomError', { message: result.message });
+      return;
+    }
+
+    const { room, playerData } = result;
+
+    // Send current players list to the new player - convert feet to eye position
+    const playersList = Array.from(room.players.values()).map(p => ({
+      id: p.id,
+      position: { x: p.position.x, y: p.position.y + PLAYER_EYE_HEIGHT, z: p.position.z },
+      rotation: p.rotation,
+      color: p.color,
+      health: p.health,
+      maxHealth: p.maxHealth,
+      kills: p.kills,
+      deaths: p.deaths,
+      isDead: p.isDead
+    }));
+    socket.emit('playersList', playersList);
+
+    // Broadcast new player to all OTHER clients in the room - convert feet to eye position
+    socket.to(roomCode).emit('playerJoined', {
+      id: playerData.id,
+      position: { x: playerData.position.x, y: playerData.position.y + PLAYER_EYE_HEIGHT, z: playerData.position.z },
+      rotation: playerData.rotation,
+      color: playerData.color,
+      health: playerData.health,
+      maxHealth: playerData.maxHealth,
+      kills: playerData.kills,
+      deaths: playerData.deaths,
+      isDead: playerData.isDead
+    });
+
+    socket.emit('roomJoined', { roomCode, myId: socket.id });
   });
 
   // Handle position/rotation updates from client (~20 Hz)
   socket.on('playerUpdate', (data) => {
-    const player = players.get(socket.id);
+    const found = getPlayerRoom(socket.id);
+    if (!found) return; // Not in a room
+
+    const { room } = found;
+    const player = room.players.get(socket.id);
     if (player && !player.isDead) {
       // Client sends eye position (y = 1.6 at ground). Convert to feet position for server storage.
       const feetY = data.position.y - PLAYER_EYE_HEIGHT;
@@ -248,8 +419,8 @@ io.on('connection', (socket) => {
       player.rotation.z = data.rotation.z;
       player.rotation.w = data.rotation.w;
 
-      // Broadcast eye position to other clients
-      socket.broadcast.emit('playerMoved', {
+      // Broadcast eye position to other clients in the room
+      socket.to(found.code).emit('playerMoved', {
         id: socket.id,
         position: { x: data.position.x, y: data.position.y, z: data.position.z },
         rotation: data.rotation
@@ -258,16 +429,19 @@ io.on('connection', (socket) => {
   });
 
   // Handle shooting
-  // Handle shooting
   socket.on('playerShoot', (data) => {
-    const shooter = players.get(socket.id);
+    const found = getPlayerRoom(socket.id);
+    if (!found) return; // Not in a room
+
+    const { room } = found;
+    const shooter = room.players.get(socket.id);
     if (!shooter || shooter.isDead) return;
 
     const { origin, direction } = data;
 
-    // Hit detection
+    // Hit detection - only against players in the same room
     let hitResult = null, hitPlayerId = null;
-    for (const [id, target] of players) {
+    for (const [id, target] of room.players) {
       if (id === socket.id || target.isDead) continue;
 
       const feetY = target.position.y;
@@ -284,45 +458,48 @@ io.on('connection', (socket) => {
       }
     }
 
-    io.emit('shotFired', { shooterId: socket.id, origin, direction, hitTargetId: hitPlayerId, hitPoint: hitResult ? hitResult.point : null, isHeadshot: hitResult ? hitResult.isHeadshot : false });
+    // Broadcast to room
+    io.to(found.code).emit('shotFired', { shooterId: socket.id, origin, direction, hitTargetId: hitPlayerId, hitPoint: hitResult ? hitResult.point : null, isHeadshot: hitResult ? hitResult.isHeadshot : false });
 
     if (hitPlayerId && hitResult) {
-      const target = players.get(hitPlayerId);
+      const target = room.players.get(hitPlayerId);
       const damage = hitResult.isHeadshot ? 50 : 25;
       target.health -= damage;
       socket.emit('playerHit', { targetId: hitPlayerId, isHeadshot: hitResult.isHeadshot });
       if (target.health <= 0) {
         target.health = 0; target.isDead = true; target.deaths++; shooter.kills++;
-        io.emit('playerDied', { victimId: hitPlayerId, killerId: socket.id, isHeadshot: hitResult.isHeadshot });
+        io.to(found.code).emit('playerDied', { victimId: hitPlayerId, killerId: socket.id, isHeadshot: hitResult.isHeadshot });
         setTimeout(() => {
-          const t = players.get(hitPlayerId);
+          const t = room.players.get(hitPlayerId);
           if (t && t.isDead) {
             const spawn = getRandomSpawnPoint();
             t.position = { x: spawn.x, y: spawn.y, z: spawn.z }; t.health = t.maxHealth; t.isDead = false;
-            io.emit('playerRespawned', { id: hitPlayerId, position: { x: t.position.x, y: t.position.y + PLAYER_EYE_HEIGHT, z: t.position.z }, health: t.health });
-            broadcastScoreboard();
+            io.to(found.code).emit('playerRespawned', { id: hitPlayerId, position: { x: t.position.x, y: t.position.y + PLAYER_EYE_HEIGHT, z: t.position.z }, health: t.health });
+            broadcastScoreboard(found.code);
           }
         }, 3000);
       }
-      broadcastScoreboard();
+      broadcastScoreboard(found.code);
     }
   });
 
   // Handle disconnect
   socket.on('disconnect', () => {
-    console.log(`[SERVER] disconnected ${socket.id}, total players: ${players.size - 1}`);
-    players.delete(socket.id);
-    io.emit('playerLeft', { id: socket.id });
-    broadcastScoreboard();
+    const totalPlayers = Array.from(rooms.values()).reduce((sum, r) => sum + r.players.size, 0);
+    console.log(`[SERVER] disconnected ${socket.id}, total players: ${totalPlayers}`);
+    leaveRoom(socket.id);
   });
 
   // Request scoreboard
   socket.on('requestScoreboard', () => {
-    broadcastScoreboard();
+    const found = getPlayerRoom(socket.id);
+    if (found) {
+      broadcastScoreboard(found.code);
+    }
   });
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log(`[SERVER] listening on ${PORT}`);
   console.log(`CORS enabled for any localhost origin`);

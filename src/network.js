@@ -9,6 +9,8 @@ export class NetworkManager {
     this.playerJoinedCallback = null;
     this.playerLeftCallback = null;
     this.playersListCallback = null;
+    this.roomJoinedCallback = null;
+    this.roomErrorCallback = null;
 
     // Combat callbacks
     this.shotFiredCallback = null;
@@ -30,6 +32,9 @@ export class NetworkManager {
     this.socket.on('connect', () => {
       this.myId = this.socket.id;
       console.log('Connected to server, my ID:', this.myId);
+
+      // Auto-join default room "TEST"
+      this.socket.emit('joinRoom', 'TEST');
     });
 
     this.socket.on('playersList', (playersList) => {
@@ -87,6 +92,25 @@ export class NetworkManager {
       }
     });
 
+    // Room events
+    this.socket.on('roomJoined', (data) => {
+      console.log('Joined room:', data.roomCode);
+      if (this.roomJoinedCallback) {
+        this.roomJoinedCallback(data);
+      }
+    });
+
+    this.socket.on('roomError', (data) => {
+      console.log('Room error:', data.message);
+      if (data.message === 'Room not found') {
+        // Try to create the room
+        this.socket.emit('createRoom', 'TEST');
+      }
+      if (this.roomErrorCallback) {
+        this.roomErrorCallback(data);
+      }
+    });
+
     this.socket.on('disconnect', () => {
       console.log('Disconnected from server');
     });
@@ -123,6 +147,17 @@ export class NetworkManager {
     this.socket.emit('requestScoreboard');
   }
 
+  // Room methods
+  createRoom(requestedCode = null) {
+    if (!this.socket || !this.socket.connected) return;
+    this.socket.emit('createRoom', requestedCode);
+  }
+
+  joinRoom(roomCode) {
+    if (!this.socket || !this.socket.connected) return;
+    this.socket.emit('joinRoom', roomCode);
+  }
+
   onPlayersList(callback) { this.playersListCallback = callback; }
   onPlayerJoined(callback) { this.playerJoinedCallback = callback; }
   onPlayerMoved(callback) { this.updateCallback = callback; }
@@ -132,6 +167,8 @@ export class NetworkManager {
   onPlayerDied(callback) { this.playerDiedCallback = callback; }
   onPlayerRespawned(callback) { this.playerRespawnedCallback = callback; }
   onScoreboardUpdate(callback) { this.scoreboardUpdateCallback = callback; }
+  onRoomJoined(callback) { this.roomJoinedCallback = callback; }
+  onRoomError(callback) { this.roomErrorCallback = callback; }
 
   getMyId() { return this.myId; }
 
