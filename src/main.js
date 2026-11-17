@@ -317,7 +317,7 @@ const coverPositions = [
 
 // Add scenery (trees/rocks/hut) from the shared seeded layout.
 // Only palms are skipped here; crates use the default count of 16.
-const layout = generateLayout({ halfSize: ARENA_HALF_SIZE, seed: 12345, spawnPoints: SPAWN_POINTS, counts: { palm: 0 } });
+const layout = generateLayout({ halfSize: ARENA_HALF_SIZE, seed: 12345, spawnPoints: SPAWN_POINTS, counts: {} });
 addSceneryFromLayout(scene, layout);
 addCratesFromLayout(scene, layout, collidables);
 

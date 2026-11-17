@@ -236,6 +236,54 @@ export function buildHut() {
   return hut;
 }
 
+export function buildPalm() {
+  const group = new THREE.Group();
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b6b3e });
+  const frondMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, side: THREE.DoubleSide });
+  const nutMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a });
+  const segments = 8;
+  const segHeight = 7 / segments;
+  let topX = 0;
+  let y = 0;
+  for (let i = 0; i < segments; i++) {
+    const rBottom = 0.35 - (0.17 * i) / segments;
+    const rTop = 0.35 - (0.17 * (i + 1)) / segments;
+    const seg = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBottom, segHeight, 8), trunkMat);
+    const lean = 1 / segments;
+    seg.position.set(topX + lean / 2, y + segHeight / 2, 0);
+    seg.rotation.z = -Math.atan2(lean, segHeight);
+    seg.castShadow = true;
+    group.add(seg);
+    topX += lean;
+    y += segHeight;
+  }
+  const crown = new THREE.Group();
+  crown.position.set(topX, y, 0);
+  const fronds = 10;
+  for (let i = 0; i < fronds; i++) {
+    const pivot = new THREE.Group();
+    pivot.rotation.y = (i / fronds) * Math.PI * 2;
+    const frond = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 0.9), frondMat);
+    frond.rotation.x = -Math.PI / 2;
+    frond.position.set(1.75, 0, 0);
+    frond.castShadow = true;
+    const tilt = new THREE.Group();
+    tilt.rotation.z = -(35 * Math.PI) / 180;
+    tilt.add(frond);
+    pivot.add(tilt);
+    crown.add(pivot);
+  }
+  for (let i = 0; i < 3; i++) {
+    const nut = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), nutMat);
+    const a = (i / 3) * Math.PI * 2;
+    nut.position.set(Math.cos(a) * 0.3, -0.25, Math.sin(a) * 0.3);
+    nut.castShadow = true;
+    crown.add(nut);
+  }
+  group.add(crown);
+  return group;
+}
+
 export function addHut(scene, arenaHalfSize, spawnPoints, coverPositions, extraExcludes = []) {
   const hut = buildHut();
 
@@ -470,7 +518,13 @@ export async function addSceneryFromLayout(scene, layout) {
 
       setShadows(clone);
       scene.add(clone);
+    } else if (obj.type === 'palm') {
+      const palm = buildPalm();
+      palm.scale.setScalar(obj.scale);
+      palm.position.set(obj.x, 0, obj.z);
+      palm.rotation.y = obj.rotY;
+      scene.add(palm);
     }
-    // crate and palm are skipped for now
+    // crate is skipped for now
   }
 }
