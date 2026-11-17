@@ -1,34 +1,57 @@
 import * as THREE from 'three';
 
-export function createArena(scene) {
+export function createArena(scene, dirLight) {
   const collidables = [];
 
   // Floor material & mesh
   const floorSize = 60;
   const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
 
-  // Create grid-like texture visually with MeshStandardMaterial
+  // Base material (fallback color if textures fail)
   const floorMaterial = new THREE.MeshStandardMaterial({
-    color: 0x333344,
-    roughness: 0.8,
-    metalness: 0.2
+    color: 0xffffff,
+    roughness: 1.0,
+    metalness: 0.0
   });
   const floor = new THREE.Mesh(floorGeometry, floorMaterial);
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
 
-  // Helper grid on the floor
+  // Load sand textures
+  const loader = new THREE.TextureLoader();
+  loader.load('/textures/sand_color.jpg', (tex) => {
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(floorSize / 4, floorSize / 4);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    floorMaterial.map = tex;
+    floorMaterial.needsUpdate = true;
+  });
+  loader.load('/textures/sand_normal.jpg', (tex) => {
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(floorSize / 4, floorSize / 4);
+    tex.anisotropy = 8;
+    floorMaterial.normalMap = tex;
+    floorMaterial.normalScale.set(0.8, 0.8);
+    floorMaterial.needsUpdate = true;
+  });
+
+  // Helper grid on the floor (hidden)
   const gridHelper = new THREE.GridHelper(floorSize, 30, 0x00ff88, 0x444466);
   gridHelper.position.y = 0.01;
+  gridHelper.visible = false;
   scene.add(gridHelper);
 
   // Wall configuration
   const wallHeight = 8;
   const wallThickness = 2;
   const wallMaterial = new THREE.MeshStandardMaterial({
-    color: 0x222233,
-    roughness: 0.6
+    color: 0xb8b2a6,
+    roughness: 0.85,
+    metalness: 0.0
   });
 
   const wallSpecs = [
@@ -48,15 +71,16 @@ export function createArena(scene) {
     wall.position.set(spec.x, spec.y, spec.z);
     wall.castShadow = true;
     wall.receiveShadow = true;
+    wall.visible = false;
     scene.add(wall);
     collidables.push(wall);
   });
 
   // Box obstacles
   const boxMaterial = new THREE.MeshStandardMaterial({
-    color: 0xff8800,
-    roughness: 0.5,
-    metalness: 0.1
+    color: 0x9c6b3c,
+    roughness: 0.6,
+    metalness: 0.0
   });
 
   const obstacles = [
@@ -77,23 +101,7 @@ export function createArena(scene) {
     collidables.push(mesh);
   });
 
-  // Add lights
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-  scene.add(ambientLight);
-
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  dirLight.position.set(20, 40, 20);
-  dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 2048;
-  dirLight.shadow.mapSize.height = 2048;
-  dirLight.shadow.camera.near = 0.5;
-  dirLight.shadow.camera.far = 100;
-  const d = 40;
-  dirLight.shadow.camera.left = -d;
-  dirLight.shadow.camera.right = d;
-  dirLight.shadow.camera.top = d;
-  dirLight.shadow.camera.bottom = -d;
-  scene.add(dirLight);
-
+  // Lighting is provided by the scene setup (sky, hemisphere, sun).
+  // Floor receives shadows; walls and cover objects cast and receive.
   return collidables;
 }

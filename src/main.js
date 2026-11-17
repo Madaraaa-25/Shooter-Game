@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Sky } from 'three/examples/jsm/objects/Sky.js';
 
 // Exposed before controls.js is imported so its click handler can gate on it
 window.__fpsCurrentScreen = 'lobby';
@@ -16,14 +17,283 @@ import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT } from './constants.js';
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 // Setup Scene & Camera
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x111122);
-scene.fog = new THREE.FogExp2(0x111122, 0.015);
+
+// Sky dome: sun ~30 degrees above the horizon
+const sky = new Sky();
+sky.material.uniforms['turbidity'].value = 3;
+sky.material.uniforms['rayleigh'].value = 1;
+sky.material.uniforms['mieCoefficient'].value = 0.005;
+sky.material.uniforms['mieDirectionalG'].value = 0.7;
+
+const sunElevation = THREE.MathUtils.degToRad(30);
+const sunAzimuth = THREE.MathUtils.degToRad(-40);
+const sun = new THREE.Vector3(
+  Math.cos(sunElevation) * Math.sin(sunAzimuth),
+  Math.sin(sunElevation),
+  Math.cos(sunElevation) * Math.cos(sunAzimuth)
+);
+sky.material.uniforms['sunPosition'].value.copy(sun);
+
+const skyMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(4000, 32, 16),
+  sky.material
+);
+skyMesh.scale.setScalar(1);
+scene.add(skyMesh);
+
+// Hemisphere light for soft sky fill
+const hemiLight = new THREE.HemisphereLight(0x9fd3ff, 0xd9c08a, 1.2);
+scene.add(hemiLight);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
+scene.add(ambientLight);
+
+// Sun directional light with soft shadows covering the whole arena
+const dirLight = new THREE.DirectionalLight(0xfff4d6, 3.0);
+dirLight.position.copy(sun.clone().multiplyScalar(60));
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 300;
+const shadowExtent = 45;
+dirLight.shadow.camera.left = -shadowExtent;
+dirLight.shadow.camera.right = shadowExtent;
+dirLight.shadow.camera.top = shadowExtent;
+dirLight.shadow.camera.bottom = -shadowExtent;
+dirLight.shadow.bias = -0.0004;
+dirLight.shadow.normalBias = 0.02;
+scene.add(dirLight);
+
+// Ocean water around the arena (cheap plane with animated normal map)
+const oceanGeometry = new THREE.PlaneGeometry(2000, 2000);
+
+function createOceanNormalMap() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(size, size);
+  const data = imgData.data;
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4;
+      const u = x / size;
+      const v = y / size;
+
+      // Soft overlapping octaves of sine noise, tileable
+      let n = 0;
+      n += 0.50 * Math.sin(u * Math.PI * 4 + v * Math.PI * 2);
+      n += 0.25 * Math.sin(u * Math.PI * 8 - v * Math.PI * 4);
+      n += 0.15 * Math.sin(u * Math.PI * 16 + v * Math.PI * 8);
+      n += 0.10 * Math.sin(u * Math.PI * 32 - v * Math.PI * 16);
+
+      n = (n + 1.5) / 3.0;
+      n = Math.max(0, Math.min(1, n));
+
+      const nx = (Math.sin(u * Math.PI * 2) + Math.sin(v * Math.PI * 2)) * 0.25 + 0.5;
+      const ny = (Math.cos(u * Math.PI * 2) + Math.cos(v * Math.PI * 2)) * 0.25 + 0.5;
+
+      data[i] = nx * 255;
+      data[i + 1] = ny * 255;
+      data[i + 2] = 255;
+      data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+const oceanNormalMap = createOceanNormalMap();
+
+const oceanMaterial = new THREE.MeshStandardMaterial({
+  color: 0x0fa3b8,
+  roughness: 0.15,
+  metalness: 0.0,
+  normalMap: oceanNormalMap,
+  normalScale: new THREE.Vector2(0.6, 0.6),
+  fog: false
+});
+oceanNormalMap.repeat.set(150, 150);
+
+const ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
+ocean.rotation.x = -Math.PI / 2;
+ocean.position.y = -0.3;
+ocean.receiveShadow = false;
+ocean.castShadow = false;
+scene.add(ocean);
+
+// Arena floor size from arena.js (floorSize = 60)
+const FLOOR_SIZE = 60;
+const HALF = FLOOR_SIZE / 2;
+
+// Shallow water ring (~14 units wide) at y = -0.25
+const shallowWidth = 14;
+const inner = HALF;
+const outer = HALF + shallowWidth;
+
+function createShallowTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(size, size);
+  const data = imgData.data;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4;
+      const v = y / size;
+      // Fade from inner (opaque aqua) to outer (transparent)
+      const alpha = Math.max(0, 1 - v) * 0.85;
+      data[i] = 0x7f;
+      data[i + 1] = 0xe3;
+      data[i + 2] = 0xd0;
+      data[i + 3] = alpha * 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  return tex;
+}
+
+// Four strips forming a ring around the square floor
+const shallowMat = new THREE.MeshBasicMaterial({
+  map: createShallowTexture(),
+  transparent: true,
+  depthWrite: false,
+  fog: false,
+  side: THREE.DoubleSide
+});
+
+// North strip (z = -outer to -inner)
+const northGeo = new THREE.PlaneGeometry(FLOOR_SIZE + shallowWidth * 2, shallowWidth);
+const north = new THREE.Mesh(northGeo, shallowMat);
+north.rotation.x = -Math.PI / 2;
+north.position.set(0, -0.25, -(inner + outer) / 2);
+north.receiveShadow = false;
+north.castShadow = false;
+scene.add(north);
+
+// South strip
+const south = new THREE.Mesh(northGeo, shallowMat);
+south.rotation.x = -Math.PI / 2;
+south.position.set(0, -0.25, (inner + outer) / 2);
+south.receiveShadow = false;
+south.castShadow = false;
+scene.add(south);
+
+// East strip (x = inner to outer)
+const eastGeo = new THREE.PlaneGeometry(shallowWidth, FLOOR_SIZE);
+const east = new THREE.Mesh(eastGeo, shallowMat);
+east.rotation.x = -Math.PI / 2;
+east.position.set((inner + outer) / 2, -0.25, 0);
+east.receiveShadow = false;
+east.castShadow = false;
+scene.add(east);
+
+// West strip
+const west = new THREE.Mesh(eastGeo, shallowMat);
+west.rotation.x = -Math.PI / 2;
+west.position.set(-(inner + outer) / 2, -0.25, 0);
+west.receiveShadow = false;
+west.castShadow = false;
+scene.add(west);
+
+// Thin foam strip (~1.2 wide) at y = -0.2 along the sand edge
+const foamWidth = 1.2;
+const foamInner = HALF;
+const foamOuter = HALF + foamWidth;
+
+function createFoamTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(size, size);
+  const data = imgData.data;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4;
+      const v = y / size;
+      // Broken noise fading outward
+      const noise = (Math.sin(x * 0.1) + Math.cos(y * 0.07) + Math.sin((x + y) * 0.05)) / 3;
+      const alpha = Math.max(0, 1 - v) * 0.5 * (0.5 + noise * 0.5);
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = alpha * 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  return tex;
+}
+
+const foamMat = new THREE.MeshBasicMaterial({
+  map: createFoamTexture(),
+  transparent: true,
+  depthWrite: false,
+  fog: false,
+  side: THREE.DoubleSide
+});
+
+// North foam
+const foamNorthGeo = new THREE.PlaneGeometry(FLOOR_SIZE + foamWidth * 2, foamWidth);
+const foamNorth = new THREE.Mesh(foamNorthGeo, foamMat);
+foamNorth.rotation.x = -Math.PI / 2;
+foamNorth.position.set(0, -0.2, -(foamInner + foamOuter) / 2);
+foamNorth.receiveShadow = false;
+foamNorth.castShadow = false;
+scene.add(foamNorth);
+
+// South foam
+const foamSouth = new THREE.Mesh(foamNorthGeo, foamMat);
+foamSouth.rotation.x = -Math.PI / 2;
+foamSouth.position.set(0, -0.2, (foamInner + foamOuter) / 2);
+foamSouth.receiveShadow = false;
+foamSouth.castShadow = false;
+scene.add(foamSouth);
+
+// East foam
+const foamEastGeo = new THREE.PlaneGeometry(foamWidth, FLOOR_SIZE);
+const foamEast = new THREE.Mesh(foamEastGeo, foamMat);
+foamEast.rotation.x = -Math.PI / 2;
+foamEast.position.set((foamInner + foamOuter) / 2, -0.2, 0);
+foamEast.receiveShadow = false;
+foamEast.castShadow = false;
+scene.add(foamEast);
+
+// West foam
+const foamWest = new THREE.Mesh(foamEastGeo, foamMat);
+foamWest.rotation.x = -Math.PI / 2;
+foamWest.position.set(-(foamInner + foamOuter) / 2, -0.2, 0);
+foamWest.receiveShadow = false;
+foamWest.castShadow = false;
+scene.add(foamWest);
+
+// Store foam meshes for animation
+const foamMeshes = [foamNorth, foamSouth, foamEast, foamWest];
+
+// Light haze fog at the horizon color, far distance larger so ocean stays turquoise
+scene.fog = new THREE.FogExp2(0xbfd4e8, 0.0016);
 
 const camera = new THREE.PerspectiveCamera(
   75,
@@ -33,8 +303,8 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(0, PLAYER_EYE_HEIGHT, 0);
 
-// Create 3D Arena
-const collidables = createArena(scene);
+// Create 3D Arena (walls/obstacles cast+receive, floor receives)
+const collidables = createArena(scene, dirLight);
 
 // Create Player Controls
 const playerControls = new PlayerControls(camera, document.body, collidables);
@@ -578,6 +848,19 @@ function animate() {
   requestAnimationFrame(animate);
 
   const delta = Math.min(clock.getDelta(), 0.1);
+  const time = clock.getElapsedTime();
+
+  // Animate ocean normal map offset for ripples
+  if (oceanMaterial && oceanMaterial.normalMap) {
+    oceanMaterial.normalMap.offset.x += delta * 0.01;
+    oceanMaterial.normalMap.offset.y += delta * 0.006;
+  }
+
+  // Animate foam opacity gently (0.5 to 0.9)
+  if (foamMeshes) {
+    const foamOpacity = 0.7 + Math.sin(time * 1.5) * 0.2;
+    foamMeshes.forEach(m => m.material.opacity = foamOpacity);
+  }
 
   // Don't update movement if dead or still in the lobby
   if (!isDead && !network.isInLobby()) {
