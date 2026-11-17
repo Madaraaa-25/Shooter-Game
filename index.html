@@ -72,6 +72,19 @@
           font-size: 16px; font-weight: bold; background: #ff4444; color: #000;
           border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 0 15px rgba(255, 68, 68, 0.5);">LEAVE ROOM</button>
         <p id="esc-hint" style="margin-top: 14px; font-size: 14px; color: #ffaa00;">Press Esc to release the mouse</p>
+
+        <div id="invite-block" style="margin-top: 22px; display: none; flex-direction: column; align-items: center; gap: 10px; z-index: 11;">
+          <div id="invite-room" style="font-size: 22px; font-weight: bold; color: #ffaa00; text-shadow: 0 0 12px #ffaa00;"></div>
+          <input id="invite-link" type="text" readonly style="
+            width: 360px; max-width: 80vw; text-align: center; font-family: 'Courier New', monospace;
+            font-size: 14px; background: #111; color: #00ff88; border: 2px solid #00ff88;
+            border-radius: 4px; padding: 8px; letter-spacing: 1px; cursor: text;">;
+          <button id="copy-invite" type="button" style="
+            padding: 10px 22px; font-family: 'Courier New', monospace; font-size: 16px; font-weight: bold;
+            background: #44aaff; color: #000; border: none; border-radius: 4px; cursor: pointer;
+            box-shadow: 0 0 15px rgba(68, 170, 255, 0.5);">COPY INVITE LINK</button>
+          <div id="invite-status" style="font-size: 14px; color: #44aaff; height: 18px;"></div>
+        </div>
       </div>
     </div>
     <div id="crosshair"></div>

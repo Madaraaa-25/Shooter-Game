@@ -52,6 +52,7 @@ export class UI {
 
       <div id="lobby-error" style="color: #ff4444; font-size: 16px; height: 24px; text-shadow: 0 0 8px #ff4444;"></div>
       <div id="lobby-status" style="color: #ffaa00; font-size: 16px; margin-top: 12px; height: 24px;"></div>
+      <div id="lobby-invite" style="color: #44aaff; font-size: 16px; margin-top: 10px; height: 24px;"></div>
     `;
     document.body.appendChild(this.lobby);
 
@@ -60,6 +61,7 @@ export class UI {
     this.lobbyCodeInput = document.getElementById('lobby-code');
     this.lobbyErrorEl = document.getElementById('lobby-error');
     this.lobbyStatusEl = document.getElementById('lobby-status');
+    this.lobbyInviteEl = document.getElementById('lobby-invite');
 
     // Auto-uppercase and cap at 4 characters
     this.lobbyCodeInput.addEventListener('input', () => {
@@ -84,6 +86,14 @@ export class UI {
   setLobbyStatus(message) {
     this.lobbyStatusEl.textContent = message || '';
     this.lobbyErrorEl.textContent = '';
+  }
+
+  setLobbyInvite(message) {
+    if (this.lobbyInviteEl) this.lobbyInviteEl.textContent = message || '';
+  }
+
+  clearLobbyInvite() {
+    if (this.lobbyInviteEl) this.lobbyInviteEl.textContent = '';
   }
 
   setLobbyButtonsEnabled(enabled) {
@@ -154,6 +164,42 @@ export class UI {
     `;
     this.roomCodeDisplay.textContent = 'ROOM: ';
     document.body.appendChild(this.roomCodeDisplay);
+  }
+
+  // Invite block inside the Click to Play overlay (shown only in ready state)
+  initInviteBlock() {
+    this.inviteBlock = document.getElementById('invite-block');
+    this.inviteRoomEl = document.getElementById('invite-room');
+    this.inviteLinkEl = document.getElementById('invite-link');
+    this.copyInviteBtn = document.getElementById('copy-invite');
+    this.inviteStatusEl = document.getElementById('invite-status');
+
+    // The button and the text box must never start pointer lock
+    if (this.copyInviteBtn) {
+      this.copyInviteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.onCopyInvite) this.onCopyInvite();
+      });
+    }
+    if (this.inviteLinkEl) {
+      this.inviteLinkEl.addEventListener('click', (e) => e.stopPropagation());
+    }
+  }
+
+  onCopyInvite(callback) { this.onCopyInvite = callback; }
+
+  showInviteBlock() { if (this.inviteBlock) this.inviteBlock.style.display = 'flex'; }
+  hideInviteBlock() { if (this.inviteBlock) this.inviteBlock.style.display = 'none'; }
+
+  setInviteLink(code) {
+    if (!code) { this.hideInviteBlock(); return; }
+    if (this.inviteRoomEl) this.inviteRoomEl.textContent = `ROOM: ${code}`;
+    if (this.inviteLinkEl) this.inviteLinkEl.value = `${window.location.origin}/?room=${code}`;
+    this.showInviteBlock();
+  }
+
+  setCopyInviteStatus(message) {
+    if (this.inviteStatusEl) this.inviteStatusEl.textContent = message || '';
   }
 
   setRoomCode(code) {

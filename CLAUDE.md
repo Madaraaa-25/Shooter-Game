@@ -15,6 +15,7 @@ Browser-based multiplayer First-Person Shooter (FPS) game.
 - **Planning**: Before making big structural changes, explain the plan first and wait for confirmation.
 - **Run `node --check` after any edit**: syntax-check every changed server/test file before saying you are done.
 - **If an edit fails twice, rewrite the whole file in one go**: do not retry a failing Edit; replace the entire file with Write instead.
+- **network.js keeps ONE callback per event**: `onRoomJoined`, `onRoomError`, `onRoomLeft`, etc. are single slots, so never register a second handler for the same event — extend the existing one instead. After editing client files, check that every function that is called or registered is defined exactly once with the exact spelling, and that it is defined before first use or is a hoisted function declaration.
 - **No Background Servers**: Never start, restart, or leave running any dev server (`npm run dev`), `npm start`, or `npm run server` in the background. The user runs servers in their own terminal. If a restart is needed, tell the user. Stop any background server processes immediately.
 - **Server Syntax Check**: After ANY edit to a server file, run `node --check server/index.js` before saying you are done.
 
@@ -71,6 +72,8 @@ Browser-based multiplayer First-Person Shooter (FPS) game.
 - **Run**: `npm start` → http://localhost:5173
 - **Test rooms**: `node test/rooms-test.js` (6/6) — two clients same room, different rooms, wrong code, room full, empty room deleted, leave room.
 - **Test combat**: `node test/pvp-test.js` — spawns the REAL server (`node server/index.js`) on port 3100, connects A (createRoom "PVPT") + B (joinRoom "PVPT"), and checks body shots at 3/10/30/60m, headshot, kill/respawn, away shot, ground shot, platform shot.
+
+**Invite link:** opening `/?room=ABCD` fills the lobby code box with the 4-character code (validated, auto-uppercase) and shows "Invite link: press JOIN to enter room XXXX" — joining still needs a user click. Once in a room, the Click to Play screen shows the room code, the full invite link (`<origin>/?room=<code>`) in a selectable text box, and a COPY INVITE LINK button (stopPropagation so it never starts pointer lock; copies with `navigator.clipboard.writeText`, falling back to selecting the text box + `execCommand('copy')`, and shows "Copied!" for 2s). After a successful join, `?room=` is stripped from the address bar with `history.replaceState` so a reload is clean.
 
 **Key Technical Details:**
 - Unified height convention (defined in `src/constants.js`): `PLAYER_EYE_HEIGHT = 1.6`, `PLAYER_HEIGHT = 1.8`

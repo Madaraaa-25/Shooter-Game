@@ -42,6 +42,7 @@ const playerControls = new PlayerControls(camera, document.body, collidables);
 // Create UI
 const ui = new UI();
 ui.createRoomCodeDisplay();
+ui.initInviteBlock();
 
 // Create Target System
 const targetSystem = new TargetSystem(scene);
@@ -264,10 +265,20 @@ network.onScoreboardUpdate((players) => {
 // Lobby
 // ============================================================
 let lobbyBusy = false;
+let lobbyTimeout = null;
 
 function enableLobbyButtons() {
   lobbyBusy = false;
   ui.setLobbyButtonsEnabled(network.isSocketConnected());
+}
+
+function startLobbyTimeout() {
+  if (lobbyTimeout) clearTimeout(lobbyTimeout);
+  lobbyTimeout = setTimeout(() => {
+    lobbyBusy = false;
+    enableLobbyButtons();
+    ui.setLobbyError('No response from the server');
+  }, 5000);
 }
 
 ui.setLobbyCallbacks(
@@ -277,7 +288,9 @@ ui.setLobbyCallbacks(
     ui.setLobbyButtonsEnabled(false);
     ui.setLobbyError('');
     ui.setLobbyStatus('');
+    ui.clearLobbyInvite();
     network.createRoom();
+    startLobbyTimeout();
   },
   () => {
     if (lobbyBusy) return;
@@ -290,7 +303,9 @@ ui.setLobbyCallbacks(
     ui.setLobbyButtonsEnabled(false);
     ui.setLobbyError('');
     ui.setLobbyStatus('');
+    ui.clearLobbyInvite();
     network.joinRoom(code);
+    startLobbyTimeout();
   }
 );
 
@@ -320,6 +335,9 @@ function setScreen(state) {
   leaveRoomBtn.style.display = (state === 'ready') ? 'inline-block' : 'none';
   escHint.style.display = (state === 'ready') ? 'block' : 'none';
 
+  // Invite block: only on the "ready" screen
+  if (state === 'ready') ui.showInviteBlock(); else ui.hideInviteBlock();
+
   // Crosshair (defined in index.html)
   const crosshair = document.getElementById('crosshair');
   if (crosshair) crosshair.style.display = inRoom ? 'block' : 'none';
@@ -329,22 +347,36 @@ function setScreen(state) {
 }
 
 function onRoomJoined(data) {
-  ui.setRoomCode(data.roomCode);
-  ui.setLobbyError('');
-  ui.clearLobbyCode();
-  enableLobbyButtons();
-  setScreen('ready');
+  console.log('[NET] roomJoined handler called', data);
+  try { lobbyBusy = false; enableLobbyButtons(); } catch (e) { console.error('[ROOM] enableLobbyButtons', e); }
+  try { setScreen('ready'); } catch (e) { console.error('[ROOM] setScreen ready', e); }
+  try { ui.setRoomCode(data.roomCode); } catch (e) { console.error('[ROOM] setRoomCode', e); }
+  try { ui.setLobbyError(''); } catch (e) { console.error('[ROOM] setLobbyError', e); }
+  try { ui.clearLobbyCode(); } catch (e) { console.error('[ROOM] clearLobbyCode', e); }
+  try { ui.clearLobbyInvite(); } catch (e) { console.error('[ROOM] clearLobbyInvite', e); }
+  try { ui.setInviteLink(data.roomCode); } catch (e) { console.error('[ROOM] setInviteLink', e); }
+  try {
+    if (readInviteCode()) {
+      history.replaceState(null, '', `${window.location.pathname}`);
+    }
+  } catch (e) { console.error('[ROOM] history.replaceState', e); }
+
+  // Clear the safety timeout
+  if (lobbyTimeout) { clearTimeout(lobbyTimeout); lobbyTimeout = null; }
 }
 
 function onRoomError(data) {
-  ui.setLobbyError(data.message);
-  enableLobbyButtons();
-  setScreen('lobby');
+  console.log('[NET] roomError handler called', data);
+  try { lobbyBusy = false; enableLobbyButtons(); } catch (e) { console.error('[ROOM] enableLobbyButtons', e); }
+  try { setScreen('lobby'); } catch (e) { console.error('[ROOM] setScreen lobby', e); }
+  try { ui.setLobbyError(data.message); } catch (e) { console.error('[ROOM] setLobbyError', e); }
+  try { ui.clearLobbyInvite(); } catch (e) { console.error('[ROOM] clearLobbyInvite', e); }
+
+  if (lobbyTimeout) { clearTimeout(lobbyTimeout); lobbyTimeout = null; }
 }
 
 network.onRoomJoined(onRoomJoined);
 network.onRoomError(onRoomError);
-network.onRoomLeft(onRoomLeft);
 
 // Full local reset when leaving a room. Runs synchronously, is safe to call
 // twice (the button click and the server reply both use it).
@@ -377,6 +409,7 @@ function resetRoomState() {
   ui.kdCounter.textContent = 'KILLS: 0  DEATHS: 0';
   ui.updatePlayerCount(1);
   ui.hideRoomCode();
+  ui.hideInviteBlock();
 
   // 5. Exit pointer lock
   if (document.pointerLockElement) document.exitPointerLock();
@@ -392,8 +425,10 @@ function resetRoomState() {
 
 function onRoomLeft() {
   console.log('[LEAVE] roomLeft received', performance.now());
-  resetRoomState();
+  try { resetRoomState(); } catch (e) { console.error('[ROOM] resetRoomState', e); }
 }
+
+network.onRoomLeft(onRoomLeft);
 
 // Tab key for scoreboard
 document.addEventListener('keydown', (e) => {
@@ -412,6 +447,66 @@ document.addEventListener('keyup', (e) => {
 
 // Connect to server
 network.connect();
+
+// ============================================================
+// Invite link handling
+// ============================================================
+const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function readInviteCode() {
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get('room');
+  if (!raw || raw.length !== 4) return null;
+  const code = raw.toUpperCase();
+  return [...code].every((c) => ROOM_CODE_CHARS.includes(c)) ? code : null;
+}
+
+const inviteCode = readInviteCode();
+if (inviteCode) {
+  ui.lobbyCodeInput.value = inviteCode;
+  ui.setLobbyInvite(`Invite link: press JOIN to enter room ${inviteCode}`);
+}
+
+function copyInviteLink() {
+  const code = network.getRoomCode();
+  if (!code) return;
+  const url = `${window.location.origin}/?room=${code}`;
+
+  const finish = (ok) => {
+    ui.setCopyInviteStatus(ok ? 'Copied!' : '');
+    setTimeout(() => ui.setCopyInviteStatus(''), 2000);
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => finish(true)).catch(() => finish(fallbackCopy(url)));
+  } else {
+    finish(fallbackCopy(url));
+  }
+}
+
+function fallbackCopy(text) {
+  // Select the invite link text box so the player can also copy it by hand
+  if (ui.inviteLinkEl) {
+    ui.inviteLinkEl.focus();
+    ui.inviteLinkEl.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    return ok;
+  }
+
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+
+ui.onCopyInvite(copyInviteLink);
 
 // Give network a moment to connect, then set myId
 setTimeout(() => {
