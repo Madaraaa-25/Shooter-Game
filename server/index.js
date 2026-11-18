@@ -4,6 +4,8 @@ import { readFile, readdirSync } from 'fs';
 import { extname, join, normalize, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { SPAWN_POINTS } from '../shared/config.js';
+import { buildWorld } from '../shared/world.js';
+import { resolveCollisions } from '../shared/collision.js';
 
 // Directory this file lives in, so we can locate dist/ relative to it.
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -108,6 +110,10 @@ const io = new Server(httpServer, {
 
 // Spawn points around the arena (feet positions) from shared config
 const spawnPoints = SPAWN_POINTS.map(p => ({ x: p.x, y: 0, z: p.z }));
+
+// Player collision radius and the shared world layout (walls, obstacles)
+const PLAYER_RADIUS = 0.4;
+const WORLD = buildWorld();
 
 // Weapon range constant (server only)
 const MAX_SHOT_RANGE = 200;
@@ -506,9 +512,10 @@ io.on('connection', (socket) => {
     if (player && !player.isDead) {
       // Client sends eye position (y = 1.6 at ground). Convert to feet position for server storage.
       const feetY = data.position.y - PLAYER_EYE_HEIGHT;
-      player.position.x = data.position.x;
+      const fixed = resolveCollisions(WORLD.shapes, data.position.x, data.position.z, feetY, PLAYER_RADIUS);
+      player.position.x = fixed.x;
       player.position.y = feetY;
-      player.position.z = data.position.z;
+      player.position.z = fixed.z;
       player.rotation.x = data.rotation.x;
       player.rotation.y = data.rotation.y;
       player.rotation.z = data.rotation.z;
@@ -517,7 +524,7 @@ io.on('connection', (socket) => {
       // Broadcast eye position to other clients in the room
       socket.to(found.code).emit('playerMoved', {
         id: socket.id,
-        position: { x: data.position.x, y: data.position.y, z: data.position.z },
+        position: { x: fixed.x, y: data.position.y, z: fixed.z },
         rotation: data.rotation
       });
     }
