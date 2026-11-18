@@ -150,28 +150,48 @@ export function buildHut() {
   const wallL = 6;
   const wallW = 6;
 
-  // Back wall (z = +3)
-  const backGeo = new THREE.BoxGeometry(wallL, wallH, wallThick);
-  const back = new THREE.Mesh(backGeo, wallMaterial);
-  back.position.set(0, wallH / 2, wallW / 2);
-  back.castShadow = true;
-  back.receiveShadow = true;
-  hut.add(back);
+  // Build a wall with a centred window opening (1.4 wide, from height 1.0 to 2.0).
+  // `place(length, height, alongOffset, heightCenter)` adds one box piece; the
+  // caller maps "along the wall" to the correct local axis and sets the position.
+  function addWindowWall(place) {
+    const sideL = (wallL - 1.4) / 2; // 2.3
+    const off = 1.4 / 2 + sideL / 2; // 1.85
+    // piece 1: below the window, full wall length, height 1.0, centred at 0.5
+    place(wallL, 1.0, 0, 0.5);
+    // piece 2: above the window, full wall length, height 1.0, centred at 2.5
+    place(wallL, 1.0, 0, 2.5);
+    // piece 3: left of the window, length 2.3, height 1.0, centred at 1.5
+    place(sideL, 1.0, -off, 1.5);
+    // piece 4: right of the window, same size, offset +1.85 along the wall
+    place(sideL, 1.0, +off, 1.5);
+  }
 
-  // Left wall (x = -3)
-  const leftGeo = new THREE.BoxGeometry(wallThick, wallH, wallW);
-  const left = new THREE.Mesh(leftGeo, wallMaterial);
-  left.position.set(-wallL / 2, wallH / 2, 0);
-  left.castShadow = true;
-  left.receiveShadow = true;
-  hut.add(left);
+  // Back wall (z = +3): "along the wall" is local x
+  addWindowWall((length, height, alongOffset, heightCenter) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(length, height, wallThick), wallMaterial);
+    mesh.position.set(alongOffset, heightCenter, wallW / 2);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    hut.add(mesh);
+  });
 
-  // Right wall (x = +3)
-  const right = new THREE.Mesh(leftGeo, wallMaterial);
-  right.position.set(wallL / 2, wallH / 2, 0);
-  right.castShadow = true;
-  right.receiveShadow = true;
-  hut.add(right);
+  // Left wall (x = -3): "along the wall" is local z
+  addWindowWall((length, height, alongOffset, heightCenter) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(wallThick, height, length), wallMaterial);
+    mesh.position.set(-wallL / 2, heightCenter, alongOffset);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    hut.add(mesh);
+  });
+
+  // Right wall (x = +3): "along the wall" is local z
+  addWindowWall((length, height, alongOffset, heightCenter) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(wallThick, height, length), wallMaterial);
+    mesh.position.set(wallL / 2, heightCenter, alongOffset);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    hut.add(mesh);
+  });
 
   // Front wall with door opening: two side panels + top lintel
   const doorW = 2.2;
