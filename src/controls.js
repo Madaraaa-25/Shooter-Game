@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT, PLAYER_BODY_RADIUS } from './constants.js';
-import { resolveCollisions } from '../shared/collision.js';
+import { resolveCollisions, getGroundHeight } from '../shared/collision.js';
 
 export class PlayerControls {
   constructor(camera, domElement, collidables, collisionShapes) {
@@ -238,6 +238,17 @@ export class PlayerControls {
       const hit = intersects[0];
       if (this.velocity.y <= 0 && hit.distance <= PLAYER_EYE_HEIGHT + 0.1) {
         this.camera.position.y = hit.point.y + PLAYER_EYE_HEIGHT;
+        this.velocity.y = 0;
+        this.canJump = true;
+      }
+    }
+
+    // Ground height from shared collision shapes (handles shapes the raycast misses)
+    if (this.collisionShapes && this.velocity.y <= 0) {
+      const footY = this.camera.position.y - PLAYER_EYE_HEIGHT;
+      const ground = getGroundHeight(this.collisionShapes, this.camera.position.x, this.camera.position.z, this.playerRadius, footY);
+      if (ground > 0 && footY <= ground + 0.1) {
+        this.camera.position.y = ground + PLAYER_EYE_HEIGHT;
         this.velocity.y = 0;
         this.canJump = true;
       }

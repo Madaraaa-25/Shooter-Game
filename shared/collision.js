@@ -1,12 +1,19 @@
 import { CRATE_SIZE, CRATE_HEIGHT } from './config.js';
 
+export const STEP_TOLERANCE = 0.35;
+
 // Returns { circles: [{x,z,r,height}], boxes: [{x,z,hx,hz,height}] }
 export function buildCollisionShapes(layout) {
   const circles = [];
   const boxes = [];
   for (const o of layout) {
     if (o.type === 'rock') {
-      circles.push({ x: o.x, z: o.z, r: o.r * 0.8, height: 3 });
+      const H = o.scale;
+      const hw = 0.635 * H;
+      const hd = 0.91 * H;
+      boxes.push({ x: o.x, z: o.z, hx: hw * 0.8, hz: hd * 0.8, rotY: o.rotY, height: Math.min(0.8, H) });
+      if (H > 1.0) boxes.push({ x: o.x, z: o.z, hx: hw * 0.55, hz: hd * 0.55, rotY: o.rotY, height: Math.min(1.6, H) });
+      if (H > 1.8) boxes.push({ x: o.x, z: o.z, hx: hw * 0.3, hz: hd * 0.3, rotY: o.rotY, height: H });
     } else if (o.type === 'tree') {
       circles.push({ x: o.x, z: o.z, r: 0.8 * o.scale, height: 100 });
     } else if (o.type === 'palm') {
@@ -24,7 +31,7 @@ export function buildCollisionShapes(layout) {
 // Returns the corrected { x, z }.
 export function resolveCollisions(shapes, x, z, y, pr) {
   for (const c of shapes.circles) {
-    if (y >= c.height) continue;
+    if (y >= c.height - STEP_TOLERANCE) continue;
     const dx = x - c.x;
     const dz = z - c.z;
     const dist = Math.hypot(dx, dz);
@@ -36,7 +43,7 @@ export function resolveCollisions(shapes, x, z, y, pr) {
     }
   }
   for (const b of shapes.boxes) {
-    if (y >= b.height) continue;
+    if (y >= b.height - STEP_TOLERANCE) continue;
     const rot = b.rotY || 0;
     const cos = Math.cos(rot);
     const sin = Math.sin(rot);
@@ -56,4 +63,29 @@ export function resolveCollisions(shapes, x, z, y, pr) {
     }
   }
   return { x, z };
+}
+
+// Returns the height of the highest ground shape (circle or box) under (x, z)
+// that the player's feet (at feetY) can stand on. pr is the player radius.
+export function getGroundHeight(shapes, x, z, pr, feetY) {
+  let best = 0;
+  const tol = STEP_TOLERANCE + 0.05;
+  for (const c of shapes.circles) {
+    if (c.height > 50) continue;
+    if (c.height > feetY + tol) continue;
+    if (Math.hypot(x - c.x, z - c.z) < c.r + pr * 0.5 && c.height > best) best = c.height;
+  }
+  for (const b of shapes.boxes) {
+    if (b.height > 50) continue;
+    if (b.height > feetY + tol) continue;
+    const rot = b.rotY || 0;
+    const cos = Math.cos(rot);
+    const sin = Math.sin(rot);
+    const dx = x - b.x;
+    const dz = z - b.z;
+    const lx = dx * cos - dz * sin;
+    const lz = dx * sin + dz * cos;
+    if (Math.abs(lx) < b.hx + pr * 0.5 && Math.abs(lz) < b.hz + pr * 0.5 && b.height > best) best = b.height;
+  }
+  return best;
 }

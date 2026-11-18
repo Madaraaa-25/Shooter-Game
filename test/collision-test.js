@@ -1,7 +1,7 @@
 import { buildCollisionShapes, resolveCollisions } from '../shared/collision.js';
 
 const layout = [
-  { type: 'rock', x: 10, z: 0, r: 4, rotY: 0, scale: 1.6 },
+  { type: 'rock', x: 10, z: 0, r: 4, rotY: 0, scale: 2.4 },
   { type: 'tree', x: -10, z: 0, r: 6, rotY: 0, scale: 1.5 },
   { type: 'palm', x: 0, z: 10, r: 2.5, rotY: 0, scale: 1 },
   { type: 'hut', x: 0, z: -10, r: 7, rotY: 0, scale: 1 },
@@ -22,11 +22,18 @@ function check(name, cond) {
   check('far point unchanged', r.x === 40 && r.z === -40);
 }
 
-// 2. Rock centre pushed out: distance from (10,0) >= 3.2 + 0.4 - 0.01.
+// 2. Rock centre pushed out: |x-10| >= 1.524*0.8 + 0.4 - 0.01 OR |z| >= 2.184*0.8 + 0.4 - 0.01.
 {
-  const r = resolveCollisions(shapes, 10, 0.5, 0, pr);
-  const d = Math.hypot(r.x - 10, r.z - 0);
-  check('rock centre pushed out', d >= 3.2 + 0.4 - 0.01);
+  const r = resolveCollisions(shapes, 10, 0, 0, pr);
+  check('rock centre pushed out',
+    Math.abs(r.x - 10) >= 1.524 * 0.8 + 0.4 - 0.01 ||
+    Math.abs(r.z - 0) >= 2.184 * 0.8 + 0.4 - 0.01);
+}
+
+// 2b. Rock top unchanged: same point at y = 2.4 stays put.
+{
+  const r = resolveCollisions(shapes, 10, 0, 2.4, pr);
+  check('rock top unchanged', r.x === 10 && r.z === 0);
 }
 
 // 3. Tree trunk point pushed out: distance from (-10,0) >= 1.2 + 0.4 - 0.01.
