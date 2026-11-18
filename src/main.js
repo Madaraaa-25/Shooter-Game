@@ -12,10 +12,9 @@ import { UI } from './ui.js';
 import { NetworkManager } from './network.js';
 import { OtherPlayersManager } from './otherPlayers.js';
 import { addSceneryFromLayout } from './scenery.js';
-import { generateLayout } from '../shared/layout.js';
-import { buildCollisionShapes } from '../shared/collision.js';
+import { buildWorld } from '../shared/world.js';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT } from './constants.js';
-import { ARENA_HALF_SIZE, SPAWN_POINTS } from '../shared/config.js';
+import { ARENA_HALF_SIZE } from '../shared/config.js';
 
 // Setup Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -318,8 +317,7 @@ const coverPositions = [
 
 // Add scenery (trees/rocks/hut) from the shared seeded layout.
 // Only palms are skipped here; crates use the default count of 16.
-const layout = generateLayout({ halfSize: ARENA_HALF_SIZE, seed: 12345, spawnPoints: SPAWN_POINTS, counts: {} });
-const collisionShapes = buildCollisionShapes(layout);
+const { layout, shapes: collisionShapes } = buildWorld();
 addSceneryFromLayout(scene, layout);
 addCratesFromLayout(scene, layout, collidables);
 
