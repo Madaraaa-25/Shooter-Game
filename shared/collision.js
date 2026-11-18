@@ -19,7 +19,24 @@ export function buildCollisionShapes(layout) {
     } else if (o.type === 'palm') {
       circles.push({ x: o.x, z: o.z, r: 0.5 * o.scale, height: 100 });
     } else if (o.type === 'hut') {
-      boxes.push({ x: o.x, z: o.z, hx: 2.5, hz: 2.5, height: 100 });
+      const th = Math.atan2(o.x, o.z) + Math.PI;
+      const c = Math.cos(th);
+      const s = Math.sin(th);
+      const walls = [
+        { cx: 0, cz: 3, hx: 3, hz: 0.15 },
+        { cx: -3, cz: 0, hx: 0.15, hz: 3 },
+        { cx: 3, cz: 0, hx: 0.15, hz: 3 },
+        { cx: -2.05, cz: -3, hx: 0.95, hz: 0.15 },
+        { cx: 2.05, cz: -3, hx: 0.95, hz: 0.15 }
+      ];
+      const k = o.scale;
+      for (const w of walls) {
+        boxes.push({
+          x: o.x + (w.cx * c + w.cz * s) * k,
+          z: o.z + (-w.cx * s + w.cz * c) * k,
+          hx: w.hx * k, hz: w.hz * k, rotY: th, height: 100
+        });
+      }
     } else if (o.type === 'crate') {
       boxes.push({ x: o.x, z: o.z, hx: CRATE_SIZE / 2, hz: CRATE_SIZE / 2, height: CRATE_HEIGHT });
     }

@@ -50,10 +50,36 @@ function check(name, cond) {
   check('palm trunk pushed out', d >= 0.5 + 0.4 - 0.01);
 }
 
-// 5. Hut box point pushed out: |x| >= 2.5 + 0.4 - 0.01.
+// 5. Hut back wall pushes point out: |z + 7| >= 0.15 + 0.4 - 0.01.
 {
-  const r = resolveCollisions(shapes, 1, -10, 0, pr);
-  check('hut box pushed out', Math.abs(r.x) >= 2.5 + 0.4 - 0.01);
+  const r = resolveCollisions(shapes, 0, -7.1, 0, pr);
+  check('hut box pushed out', Math.abs(r.z + 7) >= 0.15 + 0.4 - 0.01);
+}
+
+// 5b. Hut walls with door gap (hut at 0,-20, door at world z = -23).
+{
+  const hutLayout = [{ type: 'hut', x: 0, z: -20, r: 7, rotY: 0, scale: 1 }];
+  const hutShapes = buildCollisionShapes(hutLayout);
+  // a. door gap open
+  {
+    const r = resolveCollisions(hutShapes, 0, -23, 0, pr);
+    check('hut door gap open', r.x === 0 && r.z === -23);
+  }
+  // b. front wall solid
+  {
+    const r = resolveCollisions(hutShapes, -2, -23, 0, pr);
+    check('hut front wall solid', Math.abs(r.z + 23) >= 0.54);
+  }
+  // c. inside open
+  {
+    const r = resolveCollisions(hutShapes, 0, -20, 0, pr);
+    check('hut inside open', r.x === 0 && r.z === -20);
+  }
+  // d. back wall solid
+  {
+    const r = resolveCollisions(hutShapes, 0, -17, 0, pr);
+    check('hut back wall solid', Math.abs(r.z + 17) >= 0.54);
+  }
 }
 
 // 6. Crate point pushed out: |dx| or |dz| >= 1.2 + 0.4 - 0.01.
@@ -101,6 +127,32 @@ function check(name, cond) {
   const shapes2 = { circles: [], boxes: [{ x: 0, z: 0, hx: 3, hz: 1, rotY: Math.PI / 2, height: 100 }] };
   const r = resolveCollisions(shapes2, 0.3, 3.2, 0, pr);
   check('rotated box pushed from end', r.z >= 3.4 - 0.01);
+}
+
+// 13. Scaled hut (scale 1.3): back wall at world z = -16.1, door at world z = -23.9
+{
+  const hutLayout = [{ type: 'hut', x: 0, z: -20, r: 7, rotY: 0, scale: 1.3 }];
+  const hutShapes = buildCollisionShapes(hutLayout);
+  // a. door open
+  {
+    const r = resolveCollisions(hutShapes, 0, -23.9, 0, pr);
+    check('scaled hut door open', r.x === 0 && r.z === -23.9);
+  }
+  // b. back wall outer
+  {
+    const r = resolveCollisions(hutShapes, 0, -16.0, 0, pr);
+    check('scaled hut back wall outer', Math.abs(r.z + 16.1) >= 0.195 + 0.4 - 0.01);
+  }
+  // c. front wall solid
+  {
+    const r = resolveCollisions(hutShapes, -2.6, -23.9, 0, pr);
+    check('scaled hut front wall solid', Math.abs(r.z + 23.9) >= 0.195 + 0.4 - 0.01);
+  }
+  // d. inside open
+  {
+    const r = resolveCollisions(hutShapes, 0, -20, 0, pr);
+    check('scaled hut inside open', r.x === 0 && r.z === -20);
+  }
 }
 
 if (!failed) {

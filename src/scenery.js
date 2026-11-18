@@ -204,13 +204,6 @@ export function buildHut() {
   lintel.receiveShadow = true;
   hut.add(lintel);
 
-  // Dark door opening plane
-  const doorGeo = new THREE.PlaneGeometry(doorW, doorH);
-  const doorMat = new THREE.MeshBasicMaterial({ color: 0x1a1008, side: THREE.DoubleSide, depthWrite: false });
-  const door = new THREE.Mesh(doorGeo, doorMat);
-  door.position.set(0, doorH / 2, -wallW / 2 + 0.02);
-  hut.add(door);
-
   // Thatch roof: pyramid (ConeGeometry 4 segments, rotated 45 deg)
   // Radius: half diagonal of 6x6 square + 0.6 overhang
   const roofRadius = (wallW / 2) * Math.SQRT2 + 0.6;
