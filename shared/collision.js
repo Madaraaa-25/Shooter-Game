@@ -34,7 +34,7 @@ export function buildCollisionShapes(layout) {
         boxes.push({
           x: o.x + (w.cx * c + w.cz * s) * k,
           z: o.z + (-w.cx * s + w.cz * c) * k,
-          hx: w.hx * k, hz: w.hz * k, rotY: th, height: 100
+          hx: w.hx * k, hz: w.hz * k, rotY: th, height: 100, shotHeight: 3 * k
         });
       }
     } else if (o.type === 'crate') {
@@ -103,6 +103,57 @@ export function getGroundHeight(shapes, x, z, pr, feetY) {
     const lx = dx * cos - dz * sin;
     const lz = dx * sin + dz * cos;
     if (Math.abs(lx) < b.hx + pr * 0.5 && Math.abs(lz) < b.hz + pr * 0.5 && b.height > best) best = b.height;
+  }
+  return best;
+}
+
+// Distance along the ray to the first solid shape, or Infinity if none within maxDist.
+// origin and dir are {x,y,z}; dir should be normalised. Shapes span y from 0 to (shotHeight ?? height).
+export function rayHitsShapes(shapes, origin, dir, maxDist) {
+  let best = Infinity;
+  for (const c of shapes.circles) {
+    const top = c.shotHeight ?? c.height;
+    const a = dir.x * dir.x + dir.z * dir.z;
+    if (a < 1e-9) continue;
+    const ox = origin.x - c.x;
+    const oz = origin.z - c.z;
+    const b = ox * dir.x + oz * dir.z;
+    const k = ox * ox + oz * oz - c.r * c.r;
+    const disc = b * b - a * k;
+    if (disc < 0) continue;
+    const t = (-b - Math.sqrt(disc)) / a;
+    if (t < 0 || t > maxDist || t >= best) continue;
+    const y = origin.y + dir.y * t;
+    if (y < 0 || y > top) continue;
+    best = t;
+  }
+  for (const bx of shapes.boxes) {
+    const top = bx.shotHeight ?? bx.height;
+    const rot = bx.rotY || 0;
+    const cos = Math.cos(rot);
+    const sin = Math.sin(rot);
+    const dx = origin.x - bx.x;
+    const dz = origin.z - bx.z;
+    const o = [dx * cos - dz * sin, origin.y, dx * sin + dz * cos];
+    const d = [dir.x * cos - dir.z * sin, dir.y, dir.x * sin + dir.z * cos];
+    const lo = [-bx.hx, 0, -bx.hz];
+    const hi = [bx.hx, top, bx.hz];
+    let tmin = -Infinity;
+    let tmax = Infinity;
+    let miss = false;
+    for (let i = 0; i < 3; i++) {
+      if (Math.abs(d[i]) < 1e-9) {
+        if (o[i] < lo[i] || o[i] > hi[i]) { miss = true; break; }
+      } else {
+        let t1 = (lo[i] - o[i]) / d[i];
+        let t2 = (hi[i] - o[i]) / d[i];
+        if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+        if (t1 > tmin) tmin = t1;
+        if (t2 < tmax) tmax = t2;
+      }
+    }
+    if (miss || tmin > tmax || tmin < 0 || tmin > maxDist || tmin >= best) continue;
+    best = tmin;
   }
   return best;
 }

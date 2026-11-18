@@ -1,4 +1,4 @@
-import { buildCollisionShapes, resolveCollisions } from '../shared/collision.js';
+import { buildCollisionShapes, resolveCollisions, rayHitsShapes } from '../shared/collision.js';
 
 const layout = [
   { type: 'rock', x: 10, z: 0, r: 4, rotY: 0, scale: 2.4 },
@@ -153,6 +153,56 @@ function check(name, cond) {
     const r = resolveCollisions(hutShapes, 0, -20, 0, pr);
     check('scaled hut inside open', r.x === 0 && r.z === -20);
   }
+}
+
+// rayHitsShapes tests
+function checkRay(name, shapes, origin, dir, maxDist, expected) {
+  const result = rayHitsShapes(shapes, origin, dir, maxDist);
+  const ok = (expected === Infinity ? result === Infinity : Math.abs(result - expected) < 0.01);
+  console.log((ok ? 'PASS' : 'FAIL') + ': ' + name + ' (got ' + result + ', expected ' + expected + ')');
+  if (!ok) failed = true;
+}
+
+// a. ray hits box
+{
+  const shapes = { circles: [], boxes: [{ x: 0, z: 0, hx: 1, hz: 1, height: 3 }] };
+  checkRay('ray hits box', shapes, { x: -5, y: 1.6, z: 0 }, { x: 1, y: 0, z: 0 }, 200, 4);
+}
+
+// b. ray over box
+{
+  const shapes = { circles: [], boxes: [{ x: 0, z: 0, hx: 1, hz: 1, height: 3 }] };
+  checkRay('ray over box', shapes, { x: -5, y: 5, z: 0 }, { x: 1, y: 0, z: 0 }, 200, Infinity);
+}
+
+// c. ray max range
+{
+  const shapes = { circles: [], boxes: [{ x: 0, z: 0, hx: 1, hz: 1, height: 3 }] };
+  checkRay('ray max range', shapes, { x: -5, y: 1.6, z: 0 }, { x: 1, y: 0, z: 0 }, 3, Infinity);
+}
+
+// d. ray away
+{
+  const shapes = { circles: [], boxes: [{ x: 0, z: 0, hx: 1, hz: 1, height: 3 }] };
+  checkRay('ray away', shapes, { x: -5, y: 1.6, z: 0 }, { x: -1, y: 0, z: 0 }, 200, Infinity);
+}
+
+// e. ray hits circle
+{
+  const shapes = { circles: [{ x: 0, z: 0, r: 1, height: 100 }], boxes: [] };
+  checkRay('ray hits circle', shapes, { x: -5, y: 1.6, z: 0 }, { x: 1, y: 0, z: 0 }, 200, 4);
+}
+
+// f. ray rotated box
+{
+  const shapes = { circles: [], boxes: [{ x: 0, z: 0, hx: 3, hz: 1, rotY: Math.PI / 2, height: 3 }] };
+  checkRay('ray rotated box', shapes, { x: -5, y: 1.6, z: 0 }, { x: 1, y: 0, z: 0 }, 200, 4);
+}
+
+// g. ray hut shot height
+{
+  const shapes = { circles: [], boxes: [{ x: 0, z: 0, hx: 1, hz: 1, height: 100, shotHeight: 3 }] };
+  checkRay('ray hut shot height', shapes, { x: -5, y: 4, z: 0 }, { x: 1, y: 0, z: 0 }, 200, Infinity);
 }
 
 if (!failed) {
