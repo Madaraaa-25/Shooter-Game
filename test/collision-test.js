@@ -205,6 +205,26 @@ function checkRay(name, shapes, origin, dir, maxDist, expected) {
   checkRay('ray hut shot height', shapes, { x: -5, y: 4, z: 0 }, { x: 1, y: 0, z: 0 }, 200, Infinity);
 }
 
+// shot shapes tests
+const hutShapes = buildCollisionShapes([{ type: 'hut', x: 0, z: -20, r: 7, rotY: 0, scale: 1 }]).shots;
+const palmShapes = buildCollisionShapes([{ type: 'palm', x: 0, z: 0, r: 2.5, rotY: 0, scale: 1 }]).shots;
+
+// a. bullet through window and door
+checkRay('bullet through window and door', hutShapes, { x: 0, y: 1.6, z: -12 }, { x: 0, y: 0, z: -1 }, 200, Infinity);
+// b. bullet hits wall below window
+checkRay('bullet hits wall below window', hutShapes, { x: 0, y: 0.5, z: -12 }, { x: 0, y: 0, z: -1 }, 200, 4.85);
+// c. bullet hits wall beside window
+checkRay('bullet hits wall beside window', hutShapes, { x: -2, y: 1.6, z: -12 }, { x: 0, y: 0, z: -1 }, 200, 4.85);
+// d. bullet hits wall above window
+checkRay('bullet hits wall above window', hutShapes, { x: 0, y: 2.5, z: -12 }, { x: 0, y: 0, z: -1 }, 200, 4.85);
+// e. bullet hits palm trunk
+{
+  const r = rayHitsShapes(palmShapes, { x: -5, y: 1, z: 0 }, { x: 1, y: 0, z: 0 }, 200);
+  check('bullet hits palm trunk', Number.isFinite(r) && r < 5);
+}
+// f. bullet misses palm trunk
+checkRay('bullet misses palm trunk', palmShapes, { x: -5, y: 1, z: 5 }, { x: 1, y: 0, z: 0 }, 200, Infinity);
+
 if (!failed) {
   console.log('ALL COLLISION TESTS PASSED');
 }

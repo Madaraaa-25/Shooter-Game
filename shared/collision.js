@@ -41,7 +41,53 @@ export function buildCollisionShapes(layout) {
       boxes.push({ x: o.x, z: o.z, hx: CRATE_SIZE / 2, hz: CRATE_SIZE / 2, height: CRATE_HEIGHT });
     }
   }
-  return { circles, boxes };
+  const shots = { circles: [], boxes: [] };
+  for (const o of layout) {
+    const s0 = o.scale;
+    if (o.type === 'rock') {
+      shots.boxes.push({ x: o.x, z: o.z, hx: 0.57 * s0, hz: 0.82 * s0, rotY: o.rotY, height: s0 });
+    } else if (o.type === 'crate') {
+      shots.boxes.push({ x: o.x, z: o.z, hx: CRATE_SIZE / 2, hz: CRATE_SIZE / 2, height: CRATE_HEIGHT });
+    } else if (o.type === 'tree') {
+      shots.circles.push({ x: o.x, z: o.z, r: 0.6 * s0, height: 4 * s0 });
+    } else if (o.type === 'palm') {
+      const cr = Math.cos(o.rotY);
+      const sr = Math.sin(o.rotY);
+      for (let i = 0; i < 8; i++) {
+        const lx = ((i + 0.5) / 8) * s0;
+        shots.circles.push({
+          x: o.x + lx * cr,
+          z: o.z - lx * sr,
+          r: (0.35 - (0.17 * (i + 0.5)) / 8 + 0.05) * s0,
+          shotBottom: i * 0.875 * s0,
+          height: (i + 1) * 0.875 * s0
+        });
+      }
+    } else if (o.type === 'hut') {
+      const th = Math.atan2(o.x, o.z) + Math.PI;
+      const c = Math.cos(th);
+      const s = Math.sin(th);
+      const k = o.scale;
+      const add = (cx, cz, hx, hz, y0, y1) => shots.boxes.push({
+        x: o.x + (cx * c + cz * s) * k,
+        z: o.z + (-cx * s + cz * c) * k,
+        hx: hx * k, hz: hz * k, rotY: th, shotBottom: y0 * k, height: y1 * k
+      });
+      // back wall (local z = +3), window x -0.7..0.7, y 1..2
+      add(0, 3, 3, 0.15, 0, 1); add(0, 3, 3, 0.15, 2, 3);
+      add(-1.85, 3, 1.15, 0.15, 1, 2); add(1.85, 3, 1.15, 0.15, 1, 2);
+      // left wall (local x = -3)
+      add(-3, 0, 0.15, 3, 0, 1); add(-3, 0, 0.15, 3, 2, 3);
+      add(-3, -1.85, 0.15, 1.15, 1, 2); add(-3, 1.85, 0.15, 1.15, 1, 2);
+      // right wall (local x = +3)
+      add(3, 0, 0.15, 3, 0, 1); add(3, 0, 0.15, 3, 2, 3);
+      add(3, -1.85, 0.15, 1.15, 1, 2); add(3, 1.85, 0.15, 1.15, 1, 2);
+      // front wall (local z = -3): two side panels and a lintel above the 2.2 m door
+      add(-2.05, -3, 0.95, 0.15, 0, 3); add(2.05, -3, 0.95, 0.15, 0, 3);
+      add(0, -3, 1.1, 0.15, 2.2, 3);
+    }
+  }
+  return { circles, boxes, shots };
 }
 
 // Pushes a player at (x, z) with radius pr and feet height y out of every shape taller than y.
@@ -124,7 +170,8 @@ export function rayHitsShapes(shapes, origin, dir, maxDist) {
     const t = (-b - Math.sqrt(disc)) / a;
     if (t < 0 || t > maxDist || t >= best) continue;
     const y = origin.y + dir.y * t;
-    if (y < 0 || y > top) continue;
+    const bottom = c.shotBottom ?? 0;
+    if (y < bottom || y > top) continue;
     best = t;
   }
   for (const bx of shapes.boxes) {
@@ -136,7 +183,7 @@ export function rayHitsShapes(shapes, origin, dir, maxDist) {
     const dz = origin.z - bx.z;
     const o = [dx * cos - dz * sin, origin.y, dx * sin + dz * cos];
     const d = [dir.x * cos - dir.z * sin, dir.y, dir.x * sin + dir.z * cos];
-    const lo = [-bx.hx, 0, -bx.hz];
+    const lo = [-bx.hx, bx.shotBottom ?? 0, -bx.hz];
     const hi = [bx.hx, top, bx.hz];
     let tmin = -Infinity;
     let tmax = Infinity;

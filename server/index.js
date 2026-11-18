@@ -5,7 +5,7 @@ import { extname, join, normalize, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { SPAWN_POINTS } from '../shared/config.js';
 import { buildWorld } from '../shared/world.js';
-import { resolveCollisions } from '../shared/collision.js';
+import { resolveCollisions, rayHitsShapes } from '../shared/collision.js';
 
 // Directory this file lives in, so we can locate dist/ relative to it.
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -540,6 +540,10 @@ io.on('connection', (socket) => {
     if (!shooter || shooter.isDead) return;
 
     const { origin, direction } = data;
+    const dlen = Math.hypot(direction.x, direction.y, direction.z);
+    if (!dlen) return;
+    const dir = { x: direction.x / dlen, y: direction.y / dlen, z: direction.z / dlen };
+    const wallDist = rayHitsShapes(WORLD.shapes, origin, dir, MAX_SHOT_RANGE);
 
     // Hit detection - only against players in the same room
     let hitResult = null, hitPlayerId = null;
@@ -549,12 +553,12 @@ io.on('connection', (socket) => {
       const feetY = target.position.y;
       const hit = rayCapsuleIntersection(
         { x: origin.x, y: origin.y, z: origin.z },
-        { x: direction.x, y: direction.y, z: direction.z },
+        { x: dir.x, y: dir.y, z: dir.z },
         { x: target.position.x, y: feetY, z: target.position.z },
         PLAYER_BODY_RADIUS, PLAYER_HEIGHT, PLAYER_HEAD_RADIUS, feetY + PLAYER_HEAD_CENTER_OFFSET
       );
 
-      if (hit && (!hitResult || hit.distance < hitResult.distance)) {
+      if (hit && hit.distance <= MAX_SHOT_RANGE && hit.distance < wallDist && (!hitResult || hit.distance < hitResult.distance)) {
         hitResult = hit;
         hitPlayerId = id;
       }
