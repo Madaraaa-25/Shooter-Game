@@ -2,6 +2,42 @@ import { CRATE_SIZE, CRATE_HEIGHT } from './config.js';
 
 export const STEP_TOLERANCE = 0.35;
 
+const ROCK_BANDS = [
+  [-0.360, 0.416, -0.921, 0.638],
+  [-0.410, 0.444, -0.870, 0.675],
+  [-0.439, 0.469, -0.817, 0.718],
+  [-0.490, 0.464, -0.784, 0.759],
+  [-0.578, 0.424, -0.716, 0.799],
+  [-0.658, 0.263, -0.679, 0.750],
+  [-0.636, 0.245, -0.577, 0.776],
+  [-0.536, 0.262, -0.382, 0.777],
+  [-0.320, 0.267, -0.240, 0.749],
+  [-0.224, 0.142, -0.163, 0.717]
+];
+const TREE_BANDS = [
+  [-0.065, 0.034, -0.077, 0.041],
+  [0.111, 0.203, -0.188, -0.099],
+  [-0.002, 0.276, -0.208, -0.015]
+];
+
+function addBandBoxes(shots, o, size, bands) {
+  const c = Math.cos(o.rotY);
+  const s = Math.sin(o.rotY);
+  bands.forEach(([x0, x1, z0, z1], i) => {
+    const lx = ((x0 + x1) / 2) * size;
+    const lz = ((z0 + z1) / 2) * size;
+    shots.boxes.push({
+      x: o.x + lx * c + lz * s,
+      z: o.z - lx * s + lz * c,
+      hx: ((x1 - x0) / 2) * size,
+      hz: ((z1 - z0) / 2) * size,
+      rotY: o.rotY,
+      shotBottom: i * 0.1 * size,
+      height: (i + 1) * 0.1 * size
+    });
+  });
+}
+
 // Returns { circles: [{x,z,r,height}], boxes: [{x,z,hx,hz,height}] }
 export function buildCollisionShapes(layout) {
   const circles = [];
@@ -44,13 +80,11 @@ export function buildCollisionShapes(layout) {
   const shots = { circles: [], boxes: [] };
   for (const o of layout) {
     const s0 = o.scale;
-    if (o.type === 'rock') {
-      shots.boxes.push({ x: o.x, z: o.z, hx: 0.57 * s0, hz: 0.82 * s0, rotY: o.rotY, height: s0 });
-    } else if (o.type === 'crate') {
+    if (o.type === 'rock') { addBandBoxes(shots, o, s0, ROCK_BANDS); }
+    else if (o.type === 'crate') {
       shots.boxes.push({ x: o.x, z: o.z, hx: CRATE_SIZE / 2, hz: CRATE_SIZE / 2, height: CRATE_HEIGHT });
-    } else if (o.type === 'tree') {
-      shots.circles.push({ x: o.x, z: o.z, r: 0.6 * s0, height: 4 * s0 });
-    } else if (o.type === 'palm') {
+    } else if (o.type === 'tree') { addBandBoxes(shots, o, 8 * s0, TREE_BANDS); }
+    else if (o.type === 'palm') {
       const cr = Math.cos(o.rotY);
       const sr = Math.sin(o.rotY);
       for (let i = 0; i < 8; i++) {

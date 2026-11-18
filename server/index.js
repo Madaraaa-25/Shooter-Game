@@ -543,7 +543,7 @@ io.on('connection', (socket) => {
     const dlen = Math.hypot(direction.x, direction.y, direction.z);
     if (!dlen) return;
     const dir = { x: direction.x / dlen, y: direction.y / dlen, z: direction.z / dlen };
-    const wallDist = rayHitsShapes(WORLD.shapes, origin, dir, MAX_SHOT_RANGE);
+    const wallDist = rayHitsShapes(WORLD.shapes.shots, origin, dir, MAX_SHOT_RANGE);
 
     // Hit detection - only against players in the same room
     let hitResult = null, hitPlayerId = null;

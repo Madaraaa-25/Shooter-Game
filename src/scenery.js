@@ -475,6 +475,54 @@ export async function addSceneryFromLayout(scene, layout) {
   if (!treeModel) console.warn('[SCENERY] tree1.glb failed to load');
   if (!rockModel) console.warn('[SCENERY] rock1.glb failed to load');
 
+  // TEMPORARY debug measurement
+  function measureModel(root, name) {
+    root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root);
+    const h = box.max.y - box.min.y;
+    const bands = Array.from({ length: 10 }, () => ({ x: [], z: [] }));
+    const v = new THREE.Vector3();
+    let meshCount = 0;
+    let vertTotal = 0;
+    root.traverse((obj) => {
+      if (!obj.geometry || !obj.geometry.attributes || !obj.geometry.attributes.position) return;
+      meshCount++;
+      const pos = obj.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(obj.matrixWorld);
+        const ny = (v.y - box.min.y) / h;
+        const band = Math.max(0, Math.min(9, Math.floor(ny * 10)));
+        bands[band].x.push(v.x / h);
+        bands[band].z.push(v.z / h);
+        vertTotal++;
+      }
+    });
+    console.error('[MEASURE] ' + name + ' meshes=' + meshCount + ' vertices=' + vertTotal);
+    function pct(arr, p) {
+      if (arr.length === 0) return 0;
+      const s = arr.slice().sort((a, b) => a - b);
+      const idx = Math.min(s.length - 1, Math.max(0, Math.floor(p * s.length)));
+      return s[idx];
+    }
+    for (let b = 0; b < 10; b++) {
+      const band = bands[b];
+      if (band.x.length === 0) {
+        console.error('[MEASURE] ' + name + ' band=' + b + ' n=0');
+      } else {
+        console.error('[MEASURE] ' + name + ' band=' + b + ' n=' + band.x.length +
+          ' x:p5=' + pct(band.x, 0.05).toFixed(3) + ' p25=' + pct(band.x, 0.25).toFixed(3) +
+          ' p75=' + pct(band.x, 0.75).toFixed(3) + ' p95=' + pct(band.x, 0.95).toFixed(3) +
+          ' z:p5=' + pct(band.z, 0.05).toFixed(3) + ' p25=' + pct(band.z, 0.25).toFixed(3) +
+          ' p75=' + pct(band.z, 0.75).toFixed(3) + ' p95=' + pct(band.z, 0.95).toFixed(3));
+      }
+    }
+    console.error('[MEASURE] ' + name + ' height=' + h.toFixed(3) +
+      ' centreX=' + ((box.min.x + box.max.x) / 2).toFixed(3) +
+      ' centreZ=' + ((box.min.z + box.max.z) / 2).toFixed(3));
+  }
+  if (rockModel) measureModel(rockModel, 'rock');
+  if (treeModel) measureModel(treeModel, 'tree');
+
   function scaleModel(model, targetHeight) {
     const box = new THREE.Box3().setFromObject(model);
     const height = box.max.y - box.min.y;

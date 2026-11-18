@@ -225,6 +225,15 @@ checkRay('bullet hits wall above window', hutShapes, { x: 0, y: 2.5, z: -12 }, {
 // f. bullet misses palm trunk
 checkRay('bullet misses palm trunk', palmShapes, { x: -5, y: 1, z: 5 }, { x: 1, y: 0, z: 0 }, 200, Infinity);
 
+// rock shot shapes tests
+const treeShots = buildCollisionShapes([{ type: 'tree', x: 0, z: 0, r: 6, rotY: 0, scale: 1.5 }]).shots;
+const rockShots = buildCollisionShapes([{ type: 'rock', x: 0, z: 0, r: 4, rotY: 0, scale: 2 }]).shots;
+checkRay('bullet hits rock shoulder', rockShots, { x: -5, y: 1.1, z: 0 }, { x: 1, y: 0, z: 0 }, 200, 3.684);
+checkRay('bullet misses beside rock', rockShots, { x: -5, y: 1.1, z: 1.7 }, { x: 1, y: 0, z: 0 }, 200, Infinity);
+checkRay('bullet hits rock base', rockShots, { x: -5, y: 0.1, z: 0 }, { x: 1, y: 0, z: 0 }, 200, 4.28);
+checkRay('bullet hits tree trunk', treeShots, { x: -5, y: 1.6, z: -1.7 }, { x: 1, y: 0, z: 0 }, 200, 6.332);
+checkRay('bullet misses beside tree', treeShots, { x: -5, y: 1.6, z: 0 }, { x: 1, y: 0, z: 0 }, 200, Infinity);
+
 if (!failed) {
   console.log('ALL COLLISION TESTS PASSED');
 }
