@@ -392,7 +392,7 @@ function broadcastScoreboard(roomCode) {
 
   const scoreboard = Array.from(room.players.values()).map(p => ({
     id: p.id,
-    name: p.id.slice(0, 4).toUpperCase(),
+    name: p.name,
     kills: p.kills,
     deaths: p.deaths,
     color: p.color,

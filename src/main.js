@@ -531,7 +531,7 @@ network.onScoreboardUpdate((players) => {
   // Add local player to scoreboard data
   const scoreboardData = players.map(p => ({
     ...p,
-    name: p.id.slice(0, 4).toUpperCase()
+    name: (p.name && String(p.name).trim()) ? p.name : p.id.slice(0, 4).toUpperCase()
   }));
   // Ensure local player is included
   const myId = network.getMyId();
