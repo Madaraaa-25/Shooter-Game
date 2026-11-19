@@ -179,8 +179,16 @@ function createRoom(requestedCode = null) {
   return { code, room };
 }
 
+// Sanitize a player name: strip control chars, collapse whitespace,
+// trim to 12 chars, fall back to 'Player' if empty.
+function cleanName(raw) {
+  let s = typeof raw === 'string' ? raw : '';
+  s = s.replace(/[\u0000-\u001F\u007F]/g, '').replace(/\s+/g, ' ').trim().slice(0, 12).trim();
+  return s || 'Player';
+}
+
 // Get or create room for a player
-function joinRoom(socket, roomCode) {
+function joinRoom(socket, roomCode, name) {
   const room = rooms.get(roomCode);
   if (!room) {
     return { success: false, message: 'Room not found' };
@@ -192,6 +200,7 @@ function joinRoom(socket, roomCode) {
   const spawn = getRandomSpawnPoint();
   const playerData = {
     id: socket.id,
+    name: cleanName(name),
     position: { x: spawn.x, y: spawn.y, z: spawn.z },
     rotation: { x: 0, y: 0, z: 0, w: 1 },
     color: getRandomColor(),
@@ -406,8 +415,10 @@ io.on('connection', (socket) => {
     const room = result.room;
 
     const spawn = getRandomSpawnPoint();
+    const playerName = cleanName(payload && typeof payload === 'object' ? payload.name : null);
     const playerData = {
       id: socket.id,
+      name: playerName,
       position: { x: spawn.x, y: spawn.y, z: spawn.z },
       rotation: { x: 0, y: 0, z: 0, w: 1 },
       color: getRandomColor(),
@@ -425,6 +436,7 @@ io.on('connection', (socket) => {
     // Send current players list to the new player - convert feet to eye position
     const playersList = Array.from(room.players.values()).map(p => ({
       id: p.id,
+      name: p.name,
       position: { x: p.position.x, y: p.position.y + PLAYER_EYE_HEIGHT, z: p.position.z },
       rotation: p.rotation,
       color: p.color,
@@ -442,8 +454,10 @@ io.on('connection', (socket) => {
   });
 
   // Join an existing room
-  socket.on('joinRoom', (roomCode) => {
+  socket.on('joinRoom', (payload) => {
     // If player already in a room, leave it first
+    const roomCode = (payload && typeof payload === 'object') ? payload.roomCode : payload;
+    const rawName = (payload && typeof payload === 'object') ? payload.name : null;
     const currentRoom = getPlayerRoom(socket.id);
     if (currentRoom) {
       // If they are already in the requested room, just re-confirm it without
@@ -453,6 +467,7 @@ io.on('connection', (socket) => {
         const playerData = room.players.get(socket.id);
         const playersList = Array.from(room.players.values()).map(p => ({
           id: p.id,
+          name: p.name,
           position: { x: p.position.x, y: p.position.y + PLAYER_EYE_HEIGHT, z: p.position.z },
           rotation: p.rotation, color: p.color,
           health: p.health, maxHealth: p.maxHealth, kills: p.kills, deaths: p.deaths, isDead: p.isDead
@@ -464,7 +479,7 @@ io.on('connection', (socket) => {
       leaveRoom(socket.id);
     }
 
-    const result = joinRoom(socket, roomCode);
+    const result = joinRoom(socket, roomCode, rawName);
     if (!result.success) {
       socket.emit('roomError', { message: result.message });
       return;
@@ -475,6 +490,7 @@ io.on('connection', (socket) => {
     // Send current players list to the new player - convert feet to eye position
     const playersList = Array.from(room.players.values()).map(p => ({
       id: p.id,
+      name: p.name,
       position: { x: p.position.x, y: p.position.y + PLAYER_EYE_HEIGHT, z: p.position.z },
       rotation: p.rotation,
       color: p.color,
@@ -489,6 +505,7 @@ io.on('connection', (socket) => {
     // Broadcast new player to all OTHER clients in the room - convert feet to eye position
     socket.to(roomCode).emit('playerJoined', {
       id: playerData.id,
+      name: playerData.name,
       position: { x: playerData.position.x, y: playerData.position.y + PLAYER_EYE_HEIGHT, z: playerData.position.z },
       rotation: playerData.rotation,
       color: playerData.color,
@@ -576,6 +593,8 @@ io.on('connection', (socket) => {
       const target = room.players.get(hitPlayerId);
       const damage = hitResult.isHeadshot ? 50 : 25;
       target.health -= damage;
+      target.lastDamageAt = Date.now();
+      io.to(found.code).emit('playerHealth', { id: hitPlayerId, health: Math.max(0, target.health), maxHealth: target.maxHealth });
       socket.emit('playerHit', { targetId: hitPlayerId, isHeadshot: hitResult.isHeadshot });
       if (target.health <= 0) {
         target.health = 0; target.isDead = true; target.deaths++; shooter.kills++;

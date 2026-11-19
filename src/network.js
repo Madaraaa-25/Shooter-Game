@@ -24,6 +24,7 @@ export class NetworkManager {
     this.playerHitCallback = null;
     this.playerDiedCallback = null;
     this.playerRespawnedCallback = null;
+    this.playerHealthCallback = null;
     this.scoreboardUpdateCallback = null;
 
     // Throttling for sending updates (~20 Hz = every 50ms)
@@ -93,6 +94,12 @@ export class NetworkManager {
     this.socket.on('playerRespawned', (data) => {
       if (this.inRoom() && this.playerRespawnedCallback) {
         this.playerRespawnedCallback(data);
+      }
+    });
+
+    this.socket.on('playerHealth', (data) => {
+      if (this.inRoom() && this.playerHealthCallback) {
+        this.playerHealthCallback(data);
       }
     });
 
@@ -167,18 +174,18 @@ export class NetworkManager {
   }
 
   // Room methods
-  createRoom(requestedCode = null) {
+  createRoom(requestedCode = null, name = '') {
     if (!this.socket || !this.socket.connected) return;
     this.inLobby = false;
     this.roomCode = requestedCode || null;
-    this.socket.emit('createRoom', requestedCode);
+    this.socket.emit('createRoom', { requestedCode, name });
   }
 
-  joinRoom(roomCode) {
+  joinRoom(roomCode, name = '') {
     if (!this.socket || !this.socket.connected) return;
     this.inLobby = false;
     this.roomCode = roomCode;
-    this.socket.emit('joinRoom', roomCode);
+    this.socket.emit('joinRoom', { roomCode, name });
   }
 
   // Called locally the moment the player clicks LEAVE ROOM, before the
@@ -201,6 +208,7 @@ export class NetworkManager {
   onPlayerHit(callback) { this.playerHitCallback = callback; }
   onPlayerDied(callback) { this.playerDiedCallback = callback; }
   onPlayerRespawned(callback) { this.playerRespawnedCallback = callback; }
+  onPlayerHealth(callback) { this.playerHealthCallback = callback; }
   onScoreboardUpdate(callback) { this.scoreboardUpdateCallback = callback; }
   onRoomJoined(callback) { this.roomJoinedCallback = callback; }
   onRoomError(callback) { this.roomErrorCallback = callback; }

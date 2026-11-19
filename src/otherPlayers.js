@@ -13,7 +13,7 @@ export class OtherPlayersManager {
   }
 
   // Create a player capsule mesh
-  createPlayerMesh(color, id) {
+  createPlayerMesh(color, id, name) {
     const group = new THREE.Group();
     group.userData.playerId = id;
 
@@ -62,15 +62,17 @@ export class OtherPlayersManager {
     canvas.width = 256;
     canvas.height = 64;
     const ctx = canvas.getContext('2d');
-    ctx.font = 'bold 32px Arial';
+    const labelText = (typeof name === 'string' && name.trim()) ? name.trim().slice(0, 12) : id.slice(0, 4);
+    let fontSize = 32;
+    ctx.font = 'bold ' + fontSize + 'px Arial';
+    while (ctx.measureText(labelText).width > 240 && fontSize > 12) { fontSize -= 2; ctx.font = 'bold ' + fontSize + 'px Arial'; }
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 4;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const shortId = id.slice(0, 4);
-    ctx.strokeText(shortId, 128, 32);
-    ctx.fillText(shortId, 128, 32);
+    ctx.strokeText(labelText, 128, 32);
+    ctx.fillText(labelText, 128, 32);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
@@ -100,7 +102,7 @@ export class OtherPlayersManager {
     if (id === this.myId) return;
     if (this.players.has(id)) return;
 
-    const mesh = this.createPlayerMesh(data.color, id);
+    const mesh = this.createPlayerMesh(data.color, id, data.name);
     // Server sends eye position; convert to feet for visual mesh (mesh bottom at feet)
     mesh.position.set(data.position.x, data.position.y - PLAYER_EYE_HEIGHT, data.position.z);
     mesh.quaternion.set(data.rotation.x, data.rotation.y, data.rotation.z, data.rotation.w);

@@ -517,6 +517,16 @@ network.onPlayerRespawned((data) => {
   }
 });
 
+network.onPlayerHealth((data) => {
+  if (data.id === network.getMyId()) {
+    myHealth = data.health;
+    myMaxHealth = data.maxHealth;
+    ui.updateHealth(myHealth, myMaxHealth);
+  } else {
+    otherPlayers.updateHealth(data.id, data.health, data.maxHealth);
+  }
+});
+
 network.onScoreboardUpdate((players) => {
   // Add local player to scoreboard data
   const scoreboardData = players.map(p => ({
@@ -574,7 +584,7 @@ ui.setLobbyCallbacks(
     ui.setLobbyError('');
     ui.setLobbyStatus('');
     ui.clearLobbyInvite();
-    network.createRoom();
+    network.createRoom(null, ui.getLobbyName());
     startLobbyTimeout();
   },
   () => {
@@ -589,7 +599,7 @@ ui.setLobbyCallbacks(
     ui.setLobbyError('');
     ui.setLobbyStatus('');
     ui.clearLobbyInvite();
-    network.joinRoom(code);
+    network.joinRoom(code, ui.getLobbyName());
     startLobbyTimeout();
   }
 );

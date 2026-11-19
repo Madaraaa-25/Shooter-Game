@@ -34,7 +34,12 @@ export class UI {
       <div style="font-size: 52px; font-weight: bold; color: #00ff88; text-shadow: 0 0 20px #00ff88, 4px 4px 8px #000; margin-bottom: 8px;">3D FPS ARENA</div>
       <div style="font-size: 16px; color: #888; margin-bottom: 40px;">Multiplayer lobby</div>
 
-      <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 24px;">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 24px;">
+        <input id="lobby-name" maxlength="12" placeholder="Your name" autocomplete="off" style="
+          width: 200px; box-sizing: border-box; text-align: center; font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold;
+          background: #111; color: #44aaff; border: 2px solid #44aaff; border-radius: 4px; padding: 10px; letter-spacing: 1px;">
+
+        <div style="display: flex; gap: 16px; align-items: center;">
         <button id="lobby-create" style="
           padding: 14px 28px; font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold;
           background: #00ff88; color: #000; border: none; border-radius: 4px; cursor: pointer;
@@ -42,12 +47,13 @@ export class UI {
 
         <input id="lobby-code" maxlength="4" value="" style="
           width: 90px; text-align: center; font-family: 'Courier New', monospace; font-size: 22px; font-weight: bold;
-          background: #111; color: #00ff88; border: 2px solid #00ff88; border-radius: 4px; padding: 10px; letter-spacing: 4px;">;
+          background: #111; color: #00ff88; border: 2px solid #00ff88; border-radius: 4px; padding: 10px; letter-spacing: 4px;">
 
         <button id="lobby-join" style="
           padding: 14px 28px; font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold;
           background: #44aaff; color: #000; border: none; border-radius: 4px; cursor: pointer;
           box-shadow: 0 0 15px rgba(68, 170, 255, 0.5);">JOIN</button>
+      </div>
       </div>
 
       <div id="lobby-error" style="color: #ff4444; font-size: 16px; height: 24px; text-shadow: 0 0 8px #ff4444;"></div>
@@ -58,6 +64,7 @@ export class UI {
 
     this.lobbyCreateBtn = document.getElementById('lobby-create');
     this.lobbyJoinBtn = document.getElementById('lobby-join');
+    this.lobbyNameInput = document.getElementById('lobby-name');
     this.lobbyCodeInput = document.getElementById('lobby-code');
     this.lobbyErrorEl = document.getElementById('lobby-error');
     this.lobbyStatusEl = document.getElementById('lobby-status');
@@ -107,6 +114,10 @@ export class UI {
 
   getLobbyCode() {
     return this.lobbyCodeInput.value.trim();
+  }
+
+  getLobbyName() {
+    return this.lobbyNameInput.value.trim().slice(0, 12) || 'Player';
   }
 
   clearLobbyCode() {
