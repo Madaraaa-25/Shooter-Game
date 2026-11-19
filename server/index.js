@@ -510,12 +510,15 @@ io.on('connection', (socket) => {
     const { room } = found;
     const player = room.players.get(socket.id);
     if (player && !player.isDead) {
-      // Client sends eye position (y = 1.6 at ground). Convert to feet position for server storage.
-      const feetY = data.position.y - PLAYER_EYE_HEIGHT;
+      // Client sends eye position. Convert to feet position for server storage.
+      const rawEye = Number(data.eyeHeight);
+      const eyeH = Number.isFinite(rawEye) ? Math.min(PLAYER_EYE_HEIGHT, Math.max(1.0, rawEye)) : PLAYER_EYE_HEIGHT;
+      const feetY = data.position.y - eyeH;
       const fixed = resolveCollisions(WORLD.shapes, data.position.x, data.position.z, feetY, PLAYER_RADIUS);
       player.position.x = fixed.x;
       player.position.y = feetY;
       player.position.z = fixed.z;
+      player.eyeHeight = eyeH;
       player.rotation.x = data.rotation.x;
       player.rotation.y = data.rotation.y;
       player.rotation.z = data.rotation.z;
@@ -524,8 +527,9 @@ io.on('connection', (socket) => {
       // Broadcast eye position to other clients in the room
       socket.to(found.code).emit('playerMoved', {
         id: socket.id,
-        position: { x: fixed.x, y: data.position.y, z: fixed.z },
-        rotation: data.rotation
+        position: { x: fixed.x, y: feetY + PLAYER_EYE_HEIGHT, z: fixed.z },
+        rotation: data.rotation,
+        eyeHeight: eyeH
       });
     }
   });

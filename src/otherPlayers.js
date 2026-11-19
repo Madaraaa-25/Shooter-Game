@@ -131,6 +131,8 @@ export class OtherPlayersManager {
       // Server sends eye position; convert to feet for visual mesh
       player.targetPosition.set(data.position.x, data.position.y - PLAYER_EYE_HEIGHT, data.position.z);
       player.targetQuaternion.set(data.rotation.x, data.rotation.y, data.rotation.z, data.rotation.w);
+      const eh = Number(data.eyeHeight);
+      player.targetScaleY = Number.isFinite(eh) ? Math.min(1, Math.max(0.6, eh / PLAYER_EYE_HEIGHT)) : 1;
     }
   }
 
@@ -224,6 +226,11 @@ export class OtherPlayersManager {
 
       player.mesh.position.lerp(player.targetPosition, lerpFactor);
       player.mesh.quaternion.slerp(player.targetQuaternion, lerpFactor);
+      const ty = player.targetScaleY ?? 1;
+      const s = player.mesh.scale.y + (ty - player.mesh.scale.y) * lerpFactor;
+      player.mesh.scale.y = s;
+      const label = player.mesh.userData.label;
+      if (label) label.scale.y = 0.5 / s;
     });
   }
 

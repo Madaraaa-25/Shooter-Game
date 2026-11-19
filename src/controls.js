@@ -18,11 +18,17 @@ export class PlayerControls {
     this.velocity = new THREE.Vector3();
     this.direction = new THREE.Vector3();
 
-    this.playerHeight = PLAYER_EYE_HEIGHT;
+    this.eyeHeight = PLAYER_EYE_HEIGHT;
+    this.crouching = false;
+
     this.playerRadius = PLAYER_BODY_RADIUS;
     this.gravity = 30; // m/s^2
     this.jumpVelocity = 10;
     this.moveSpeed = 40.0; // Acceleration factor
+
+    window.addEventListener('blur', () => {
+      this.crouching = false;
+    });
 
     // Mouse look state
     this.isLocked = false;
@@ -59,11 +65,18 @@ export class PlayerControls {
             this.canJump = false;
           }
           break;
+        case 'KeyC':
+          event.preventDefault();
+          this.crouching = true;
+          break;
       }
     };
 
     const onKeyUp = (event) => {
       switch (event.code) {
+        case 'KeyC':
+          this.crouching = false;
+          break;
         case 'KeyW':
         case 'ArrowUp':
           this.moveForward = false;
@@ -139,6 +152,12 @@ export class PlayerControls {
   update(delta) {
     if (!this.isLocked) return;
 
+    const targetEye = this.crouching ? 1.0 : PLAYER_EYE_HEIGHT;
+    const step = 6 * delta;
+    const newEye = this.eyeHeight < targetEye ? Math.min(targetEye, this.eyeHeight + step) : Math.max(targetEye, this.eyeHeight - step);
+    this.camera.position.y += newEye - this.eyeHeight;
+    this.eyeHeight = newEye;
+
     // Apply friction to horizontal velocity
     this.velocity.x -= this.velocity.x * 10.0 * delta;
     this.velocity.z -= this.velocity.z * 10.0 * delta;
@@ -152,10 +171,10 @@ export class PlayerControls {
     this.direction.normalize();
 
     if (this.moveForward || this.moveBackward) {
-      this.velocity.z -= this.direction.z * this.moveSpeed * delta;
+      this.velocity.z -= this.direction.z * (this.moveSpeed * (this.crouching ? 0.5 : 1)) * delta;
     }
     if (this.moveLeft || this.moveRight) {
-      this.velocity.x -= this.direction.x * this.moveSpeed * delta;
+      this.velocity.x -= this.direction.x * (this.moveSpeed * (this.crouching ? 0.5 : 1)) * delta;
     }
 
     // Move camera relative to its rotation (yaw only for horizontal movement)
@@ -172,7 +191,7 @@ export class PlayerControls {
 
     // Shared collision shapes (trees/rocks/palms/huts/crates)
     if (this.collisionShapes) {
-      const feetY = this.camera.position.y - PLAYER_EYE_HEIGHT;
+      const feetY = this.camera.position.y - this.eyeHeight;
       const fixed = resolveCollisions(this.collisionShapes, this.camera.position.x, this.camera.position.z, feetY, this.playerRadius);
       this.camera.position.x = fixed.x;
       this.camera.position.z = fixed.z;
@@ -185,9 +204,9 @@ export class PlayerControls {
     this.camera.position.y += this.velocity.y * delta;
 
     // Floor check - camera y is eye position, feet are at camera.y - PLAYER_EYE_HEIGHT
-    if (this.camera.position.y < PLAYER_EYE_HEIGHT) {
+    if (this.camera.position.y < this.eyeHeight) {
       this.velocity.y = 0;
-      this.camera.position.y = PLAYER_EYE_HEIGHT;
+      this.camera.position.y = this.eyeHeight;
       this.canJump = true;
     }
 
@@ -202,7 +221,7 @@ export class PlayerControls {
     // Create bounding box for player
     playerBox.min.set(
       currentPos.x - this.playerRadius,
-      currentPos.y - this.playerHeight + 0.1,
+      currentPos.y - this.eyeHeight + 0.1,
       currentPos.z - this.playerRadius
     );
     playerBox.max.set(
@@ -224,20 +243,20 @@ export class PlayerControls {
   }
 
   checkVerticalCollisions() {
-    const playerFootY = this.camera.position.y - PLAYER_EYE_HEIGHT;
+    const playerFootY = this.camera.position.y - this.eyeHeight;
 
     const raycaster = new THREE.Raycaster(
       this.camera.position,
       new THREE.Vector3(0, -1, 0),
       0,
-      PLAYER_EYE_HEIGHT + 0.5
+      this.eyeHeight + 0.5
     );
 
     const intersects = raycaster.intersectObjects(this.collidables);
     if (intersects.length > 0) {
       const hit = intersects[0];
-      if (this.velocity.y <= 0 && hit.distance <= PLAYER_EYE_HEIGHT + 0.1) {
-        this.camera.position.y = hit.point.y + PLAYER_EYE_HEIGHT;
+      if (this.velocity.y <= 0 && hit.distance <= this.eyeHeight + 0.1) {
+        this.camera.position.y = hit.point.y + this.eyeHeight;
         this.velocity.y = 0;
         this.canJump = true;
       }
@@ -245,10 +264,10 @@ export class PlayerControls {
 
     // Ground height from shared collision shapes (handles shapes the raycast misses)
     if (this.collisionShapes && this.velocity.y <= 0) {
-      const footY = this.camera.position.y - PLAYER_EYE_HEIGHT;
+      const footY = this.camera.position.y - this.eyeHeight;
       const ground = getGroundHeight(this.collisionShapes, this.camera.position.x, this.camera.position.z, this.playerRadius, footY);
       if (ground > 0 && footY <= ground + 0.1) {
-        this.camera.position.y = ground + PLAYER_EYE_HEIGHT;
+        this.camera.position.y = ground + this.eyeHeight;
         this.velocity.y = 0;
         this.canJump = true;
       }

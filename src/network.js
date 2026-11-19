@@ -138,7 +138,7 @@ export class NetworkManager {
     });
   }
 
-  sendPlayerUpdate(position, rotation) {
+  sendPlayerUpdate(position, rotation, eyeHeight) {
     if (!this.socket || !this.socket.connected) return;
 
     const now = performance.now();
@@ -147,7 +147,8 @@ export class NetworkManager {
 
     this.socket.emit('playerUpdate', {
       position: { x: position.x, y: position.y, z: position.z },
-      rotation: { x: rotation.x, y: rotation.y, z: rotation.z, w: rotation.w }
+      rotation: { x: rotation.x, y: rotation.y, z: rotation.z, w: rotation.w },
+      eyeHeight: eyeHeight
     });
   }
 

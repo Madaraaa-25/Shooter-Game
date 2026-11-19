@@ -890,7 +890,7 @@ function animate() {
   const pos = playerControls.getWorldPosition();
   const quat = playerControls.getWorldQuaternion();
   if (network.socket?.connected && !isDead) {
-    network.sendPlayerUpdate(pos, quat);
+    network.sendPlayerUpdate(pos, quat, playerControls.eyeHeight);
   }
 
   renderer.render(scene, camera);
