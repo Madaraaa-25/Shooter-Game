@@ -102,6 +102,15 @@ function moveTo(client, feetX, feetY, feetZ) {
   });
 }
 
+// Like moveTo but also sends an explicit eyeHeight (1.0 = crouched)
+function moveToCrouched(client, feetX, feetY, feetZ, eyeHeight) {
+  client.emit('playerUpdate', {
+    position: { x: feetX, y: feetY + eyeHeight, z: feetZ },
+    rotation: { x: 0, y: 0, z: 0, w: 1 },
+    eyeHeight: eyeHeight,
+  });
+}
+
 // Send a ray from the shooter's eye to a target point
 function shootAt(shooter, targetPoint) {
   const eyeY = 1.6;
@@ -236,6 +245,52 @@ const headBefore = bTracker.health;
 shootAt(clientA, { x: 0, y: 1.95, z: -10 });
 await sleep(300);
 check('headshot 10m', bTracker.health === headBefore - 50, `${headBefore} -> ${bTracker.health}`);
+
+// ============================================================
+// 8. Face shot 10m (horizontal ray at y=1.55) is a headshot
+// ============================================================
+await resetB();
+moveTo(clientA, 0, 0, 0);
+moveTo(clientB, 0, 0, -10);
+await sleep(150);
+
+const faceBefore = bTracker.health;
+// Shooter fires horizontally at y=1.55 from 10m (target at z=-10)
+shootAt(clientA, { x: 0, y: 1.55, z: -10 });
+await sleep(300);
+check('face shot 10m is headshot', bTracker.health === faceBefore - 50, `${faceBefore} -> ${bTracker.health}`);
+
+// ============================================================
+// 9. Crouched head shot
+// ============================================================
+await resetB();
+moveTo(clientA, 0, 0, 0);
+moveToCrouched(clientB, 0, 0, -10, 1.0);
+await sleep(150);
+
+const crouchHeadBefore = bTracker.health;
+// Shooter fires horizontally at y=1.06 from 10m
+shootAt(clientA, { x: 0, y: 1.06, z: -10 });
+await sleep(300);
+check('crouched head shot', bTracker.health === crouchHeadBefore - 50, `${crouchHeadBefore} -> ${bTracker.health}`);
+
+// ============================================================
+// 10. Crouched, shot above head misses
+// ============================================================
+await resetB();
+moveTo(clientA, 0, 0, 0);
+moveToCrouched(clientB, 0, 0, -10, 1.0);
+await sleep(150);
+
+const crouchMissBefore = bTracker.health;
+// Shooter fires horizontally at y=1.7 from 10m (above the crouched head)
+shootAt(clientA, { x: 0, y: 1.7, z: -10 });
+await sleep(300);
+check('crouched shot above head misses', bTracker.health === crouchMissBefore, `${crouchMissBefore} -> ${bTracker.health}`);
+
+// Restore standing eyeHeight so later tests are not affected
+moveTo(clientB, 0, 0, -10);
+await sleep(150);
 
 // ============================================================
 // 3 & 4. Four body shots kill B, then B respawns with 100 health

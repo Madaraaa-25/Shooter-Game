@@ -254,7 +254,7 @@ function rayCapsuleIntersection(rayOrigin, rayDir, capsulePos, bodyRadius, bodyH
   const headCenter = { x: capsulePos.x, y: headCenterY, z: capsulePos.z };
   const headHit = raySphereIntersection(rayOrigin, rayDir, headCenter, headRadius);
   if (headHit && headHit.distance <= maxDistance) {
-    closestHit = { ...headHit, isHeadshot: true };
+    return { ...headHit, isHeadshot: true };
   }
 
   // Check body cylinder
