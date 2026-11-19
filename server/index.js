@@ -555,11 +555,12 @@ io.on('connection', (socket) => {
       if (id === socket.id || target.isDead) continue;
 
       const feetY = target.position.y;
+      const crouchScale = Math.min(1, Math.max(0.6, (target.eyeHeight || PLAYER_EYE_HEIGHT) / PLAYER_EYE_HEIGHT));
       const hit = rayCapsuleIntersection(
         { x: origin.x, y: origin.y, z: origin.z },
         { x: dir.x, y: dir.y, z: dir.z },
         { x: target.position.x, y: feetY, z: target.position.z },
-        PLAYER_BODY_RADIUS, PLAYER_HEIGHT, PLAYER_HEAD_RADIUS, feetY + PLAYER_HEAD_CENTER_OFFSET
+        PLAYER_BODY_RADIUS, PLAYER_HEIGHT * crouchScale, PLAYER_HEAD_RADIUS, feetY + PLAYER_HEAD_CENTER_OFFSET * crouchScale
       );
 
       if (hit && hit.distance <= MAX_SHOT_RANGE && hit.distance < wallDist && (!hitResult || hit.distance < hitResult.distance)) {
