@@ -423,29 +423,21 @@ export class UI {
     this.scoreboard = document.createElement('div');
     this.scoreboard.id = 'scoreboard';
     this.scoreboard.style.cssText = `
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.9);
-      border: 2px solid #44aaff;
-      border-radius: 8px;
-      padding: 20px 30px;
-      min-width: 350px;
-      font-family: 'Courier New', monospace;
-      color: #ffffff;
-      pointer-events: none;
-      z-index: 15;
-      display: none;
-      box-shadow: 0 0 30px rgba(68, 170, 255, 0.3);
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 520px; max-width: 94vw; padding-bottom: 12px;
+      background: rgba(8, 12, 20, 0.85); backdrop-filter: blur(6px);
+      border: 1px solid rgba(68, 170, 255, 0.7); border-radius: 10px;
+      box-shadow: 0 0 25px rgba(68, 170, 255, 0.35), inset 0 0 30px rgba(0, 0, 0, 0.5);
+      font-family: 'Courier New', monospace; color: #fff;
+      display: none; z-index: 20; pointer-events: none;
     `;
     this.scoreboard.innerHTML = `
-      <div style="font-size: 20px; font-weight: bold; color: #44aaff; text-align: center; margin-bottom: 16px; border-bottom: 1px solid #44aaff; padding-bottom: 8px;">SCOREBOARD</div>
-      <div style="display: grid; grid-template-columns: 80px 1fr 60px 60px; gap: 8px; font-size: 16px; font-weight: bold; color: #888; margin-bottom: 8px; padding: 0 10px;">
-        <span>NAME</span><span>COLOR</span><span>KILLS</span><span>DEATHS</span>
+      <div style="padding: 12px 0; text-align: center; font-size: 22px; font-weight: bold; letter-spacing: 6px; color: #44aaff; text-shadow: 0 0 12px #44aaff; background: linear-gradient(90deg, transparent, rgba(68,170,255,0.2), transparent); border-bottom: 1px solid rgba(68,170,255,0.5); border-radius: 10px 10px 0 0;">SCOREBOARD</div>
+      <div style="display: grid; grid-template-columns: 36px 1fr 70px 70px 70px; gap: 8px; padding: 10px 16px 6px; font-size: 13px; font-weight: bold; color: #7a8aa0; letter-spacing: 1px;">
+        <span>#</span><span>PLAYER</span><span style="text-align:center">KILLS</span><span style="text-align:center">DEATHS</span><span style="text-align:center">K/D</span>
       </div>
-      <div id="scoreboard-rows"></div>
-      <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #44aaff; text-align: center; color: #888; font-size: 14px;">Hold TAB to keep open</div>
+      <div id="scoreboard-rows" style="padding: 0 10px;"></div>
+      <div style="margin-top: 10px; text-align: center; color: #6a7a90; font-size: 12px;">Hold TAB to keep open</div>
     `;
     document.body.appendChild(this.scoreboard);
     this.scoreboardRows = document.getElementById('scoreboard-rows');
@@ -581,23 +573,41 @@ export class UI {
 
   // Scoreboard
   updateScoreboard(players) {
-    // players: array of { id, name, kills, deaths, color, health, isDead }
     this.scoreboardRows.innerHTML = '';
-    players.forEach(p => {
+    const sorted = [...players].sort((a, b) => (b.kills - a.kills) || (a.deaths - b.deaths));
+    sorted.forEach((p, i) => {
+      const isMe = p.id === this.myId;
+      const leader = i === 0 && p.kills > 0;
+      const hex = typeof p.color === 'number' ? '#' + p.color.toString(16).padStart(6, '0') : (p.color || '#888888');
+      const kd = p.deaths === 0 ? Number(p.kills).toFixed(1) : (p.kills / p.deaths).toFixed(2);
       const row = document.createElement('div');
       row.style.cssText = `
-        display: grid; grid-template-columns: 80px 1fr 60px 60px; gap: 8px;
-        font-size: 16px; padding: 4px 10px;
-        ${p.id === this.myId ? 'background: rgba(68, 170, 255, 0.15);' : ''}
+        display: grid; grid-template-columns: 36px 1fr 70px 70px 70px; gap: 8px; align-items: center;
+        padding: 7px 6px; margin-bottom: 4px; font-size: 16px; border-radius: 6px;
+        border-left: 4px solid ${hex};
+        background: ${isMe ? 'rgba(68,170,255,0.22)' : 'rgba(255,255,255,0.05)'};
+        ${isMe ? 'box-shadow: 0 0 10px rgba(68,170,255,0.4);' : ''}
+        ${leader ? 'color: #ffd24a; text-shadow: 0 0 8px rgba(255,210,74,0.6);' : ''}
         ${p.isDead ? 'opacity: 0.5;' : ''}
       `;
-      const colorBox = `<span style="display: inline-block; width: 16px; height: 16px; background: #${p.color.toString(16).padStart(6, '0')}; border: 1px solid #444; border-radius: 2px; vertical-align: middle; margin-right: 8px;"></span>`;
-      row.innerHTML = `
-        <span>${p.name}</span>
-        <span>${colorBox}<span>${p.name}</span></span>
-        <span>${p.kills}</span>
-        <span>${p.deaths}</span>
-      `;
+      const cells = [String(i + 1), '', String(p.kills), String(p.deaths), kd];
+      cells.forEach((text, c) => {
+        const span = document.createElement('span');
+        if (c === 1) {
+          span.style.cssText = 'display:flex; align-items:center; gap:8px; min-width:0; font-weight:bold;';
+          const dot = document.createElement('i');
+          dot.style.cssText = `flex:none; width:10px; height:10px; border-radius:50%; background:${hex}; box-shadow:0 0 8px ${hex};`;
+          const nameEl = document.createElement('span');
+          nameEl.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+          nameEl.textContent = (leader ? '★ ' : '') + (p.name || 'Player') + (isMe ? ' (you)' : '');
+          span.appendChild(dot);
+          span.appendChild(nameEl);
+        } else {
+          span.textContent = text;
+          if (c !== 0) span.style.textAlign = 'center';
+        }
+        row.appendChild(span);
+      });
       this.scoreboardRows.appendChild(row);
     });
   }
