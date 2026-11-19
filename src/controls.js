@@ -20,6 +20,7 @@ export class PlayerControls {
 
     this.eyeHeight = PLAYER_EYE_HEIGHT;
     this.crouching = false;
+    this.sliding = false; this.slideTime = 0; this.slideCooldown = 0; this.slideRequested = false; this.slideDirX = 0; this.slideDirZ = 0;
 
     this.playerRadius = PLAYER_BODY_RADIUS;
     this.gravity = 30; // m/s^2
@@ -28,6 +29,7 @@ export class PlayerControls {
 
     window.addEventListener('blur', () => {
       this.crouching = false;
+      this.sliding = false; this.slideTime = 0; this.slideRequested = false;
     });
 
     // Mouse look state
@@ -68,6 +70,10 @@ export class PlayerControls {
         case 'KeyC':
           event.preventDefault();
           this.crouching = true;
+          break;
+        case 'ShiftLeft':
+          event.preventDefault();
+          this.slideRequested = true;
           break;
       }
     };
@@ -152,7 +158,7 @@ export class PlayerControls {
   update(delta) {
     if (!this.isLocked) return;
 
-    const targetEye = this.crouching ? 1.0 : PLAYER_EYE_HEIGHT;
+    const targetEye = (this.crouching || this.sliding) ? 1.0 : PLAYER_EYE_HEIGHT;
     const step = 6 * delta;
     const newEye = this.eyeHeight < targetEye ? Math.min(targetEye, this.eyeHeight + step) : Math.max(targetEye, this.eyeHeight - step);
     this.camera.position.y += newEye - this.eyeHeight;
@@ -169,6 +175,24 @@ export class PlayerControls {
     this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
     this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
     this.direction.normalize();
+
+    if (this.slideCooldown > 0) this.slideCooldown -= delta;
+    if (this.slideRequested) {
+      this.slideRequested = false;
+      if (!this.sliding && this.canJump && this.slideCooldown <= 0 && (this.direction.x !== 0 || this.direction.z !== 0)) {
+        this.sliding = true; this.slideTime = 0.6; this.slideCooldown = 1.5;
+        this.slideDirX = this.direction.x; this.slideDirZ = this.direction.z;
+      }
+    }
+    if (this.sliding) {
+      this.slideTime -= delta;
+      if (this.slideTime <= 0) { this.sliding = false; }
+      else {
+        const f = this.slideTime / 0.6;
+        this.velocity.z -= this.slideDirZ * 80 * f * delta;
+        this.velocity.x -= this.slideDirX * 80 * f * delta;
+      }
+    }
 
     if (this.moveForward || this.moveBackward) {
       this.velocity.z -= this.direction.z * (this.moveSpeed * (this.crouching ? 0.5 : 1)) * delta;
