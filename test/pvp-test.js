@@ -361,6 +361,31 @@ await sleep(300);
 check('platform body shot', bTracker.health === platBefore - 25, `${platBefore} -> ${bTracker.health}`);
 
 // ============================================================
+// 8. Health regeneration (5 s delay, then +10 per second)
+// ============================================================
+await resetB();
+moveTo(clientA, 0, 0, 0);
+moveTo(clientB, 0, 0, -3);
+await sleep(150);
+let regenHealth = null;
+const onRegenHealth = (d) => { if (d.id === clientB.id) regenHealth = d.health; };
+clientB.on('playerHealth', onRegenHealth);
+shootAt(clientA, { x: 0, y: 0.9, z: -3 });
+await sleep(150);
+shootAt(clientA, { x: 0, y: 0.9, z: -3 });
+await sleep(300);
+check('regen: two body shots leave B at 50', regenHealth === 50, `health ${regenHealth}`);
+await sleep(3000);
+check('regen: no healing within 5s of damage', regenHealth === 50, `health ${regenHealth}`);
+await sleep(4500);
+check('regen: health rises after 5s and stays <= 100', regenHealth > 50 && regenHealth <= 100, `health ${regenHealth}`);
+const beforeHit = regenHealth;
+shootAt(clientA, { x: 0, y: 0.9, z: -3 });
+await sleep(300);
+check('regen: damage still applies while healing', regenHealth < beforeHit, `${beforeHit} -> ${regenHealth}`);
+clientB.off('playerHealth', onRegenHealth);
+
+// ============================================================
 // Cleanup
 // ============================================================
 clientA.disconnect();
