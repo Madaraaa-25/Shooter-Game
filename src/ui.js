@@ -286,7 +286,6 @@ export class UI {
       bottom: 20px;
       left: 20px;
       width: 250px;
-      height: 30px;
       pointer-events: none;
       z-index: 5;
     `;
