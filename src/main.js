@@ -875,12 +875,28 @@ window.addEventListener('resize', () => {
 
 // Main Render Loop
 const clock = new THREE.Clock();
+const perfEl = document.createElement('div');
+perfEl.style.cssText = "position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:13px;color:#9fe;text-shadow:0 0 4px #000;pointer-events:none;z-index:5;";
+perfEl.textContent = 'FPS -- | PING --';
+document.body.appendChild(perfEl);
+let perfFrames = 0;
+let perfPing = '--';
+setInterval(() => {
+  perfEl.textContent = 'FPS ' + perfFrames + ' | PING ' + perfPing;
+  perfFrames = 0;
+}, 1000);
+setInterval(() => {
+  if (!network.socket || !network.socket.connected) { perfPing = '--'; return; }
+  const t0 = performance.now();
+  network.socket.emit('pingCheck', () => { perfPing = Math.round(performance.now() - t0) + ' ms'; });
+}, 2000);
 
 function animate() {
   requestAnimationFrame(animate);
 
   const delta = Math.min(clock.getDelta(), 0.1);
   const time = clock.getElapsedTime();
+  perfFrames++;
 
   // Animate ocean normal map offset for ripples
   if (oceanMaterial && oceanMaterial.normalMap) {

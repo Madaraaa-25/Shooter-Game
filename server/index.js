@@ -656,6 +656,8 @@ io.on('connection', (socket) => {
     leaveRoom(socket.id);
   });
 
+  socket.on('pingCheck', (ack) => { if (typeof ack === 'function') ack(); });
+
   // Request scoreboard
   socket.on('requestScoreboard', () => {
     const found = getPlayerRoom(socket.id);
