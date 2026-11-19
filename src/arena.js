@@ -24,22 +24,38 @@ const baseMaterialParams = {
 
 function createCrateMaterial() {
   const material = new THREE.MeshStandardMaterial(baseMaterialParams);
-  if (crateColorMap) {
-    material.map = crateColorMap.clone();
-    material.map.repeat.set(CRATE_SIZE / 2, CRATE_SIZE / 2);
-    material.map.wrapS = THREE.RepeatWrapping;
-    material.map.wrapT = THREE.RepeatWrapping;
-    material.map.colorSpace = THREE.SRGBColorSpace;
-    material.map.anisotropy = 4;
+  const apply = () => {
+    if (crateColorMap.image) {
+      const m = crateColorMap.clone();
+      m.needsUpdate = true;
+      m.repeat.set(CRATE_SIZE / 2, CRATE_SIZE / 2);
+      m.wrapS = THREE.RepeatWrapping;
+      m.wrapT = THREE.RepeatWrapping;
+      m.colorSpace = THREE.SRGBColorSpace;
+      m.anisotropy = 4;
+      material.map = m;
+    }
+    if (crateNormalMap.image) {
+      const n = crateNormalMap.clone();
+      n.needsUpdate = true;
+      n.repeat.set(CRATE_SIZE / 2, CRATE_SIZE / 2);
+      n.wrapS = THREE.RepeatWrapping;
+      n.wrapT = THREE.RepeatWrapping;
+      n.anisotropy = 4;
+      material.normalMap = n;
+    }
+    material.needsUpdate = true;
+  };
+  if (crateColorMap.image && crateNormalMap.image) {
+    apply();
+  } else {
+    const timer = setInterval(() => {
+      if (crateColorMap.image && crateNormalMap.image) {
+        clearInterval(timer);
+        apply();
+      }
+    }, 100);
   }
-  if (crateNormalMap) {
-    material.normalMap = crateNormalMap.clone();
-    material.normalMap.repeat.set(CRATE_SIZE / 2, CRATE_SIZE / 2);
-    material.normalMap.wrapS = THREE.RepeatWrapping;
-    material.normalMap.wrapT = THREE.RepeatWrapping;
-    material.normalMap.anisotropy = 4;
-  }
-  material.needsUpdate = true;
   return material;
 }
 
