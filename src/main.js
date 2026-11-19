@@ -427,6 +427,11 @@ let respawnCooldown = 0;
 
 // Network callbacks
 network.onPlayersList((playersList) => {
+  const me = playersList.find((d) => d.id === network.socket.id);
+  if (me && me.position) {
+    playerControls.getWorldPosition().set(me.position.x, me.position.y, me.position.z);
+    playerControls.velocity.set(0, 0, 0);
+  }
   playersList.forEach((data) => {
     if (data.id !== network.getMyId()) {
       otherPlayers.addPlayer(data.id, data);
@@ -511,6 +516,8 @@ network.onPlayerRespawned((data) => {
     ui.updateHealth(myHealth, myMaxHealth);
     ui.hideDeathScreen();
     respawnCooldown = 0;
+    playerControls.getWorldPosition().set(data.position.x, data.position.y, data.position.z);
+    playerControls.velocity.set(0, 0, 0);
   } else {
     // Other player respawned
     otherPlayers.respawnPlayer(data.id, data.position, data.health);
