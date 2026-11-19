@@ -142,6 +142,27 @@ function getRandomSpawnPoint() {
   return spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
 }
 
+function getSafeSpawnPoint(room, excludeId) {
+  const others = [];
+  for (const [id, p] of room.players) {
+    if (id === excludeId || p.isDead) continue;
+    others.push(p.position);
+  }
+  if (others.length === 0) return getRandomSpawnPoint();
+  let best = [];
+  let bestDist = -1;
+  for (const sp of spawnPoints) {
+    let nearest = Infinity;
+    for (const o of others) {
+      const d = Math.hypot(sp.x - o.x, sp.z - o.z);
+      if (d < nearest) nearest = d;
+    }
+    if (nearest > bestDist + 0.01) { bestDist = nearest; best = [sp]; }
+    else if (Math.abs(nearest - bestDist) <= 0.01) best.push(sp);
+  }
+  return best[Math.floor(Math.random() * best.length)];
+}
+
 // Generate a unique 4-character room code
 function generateRoomCode(existingCodes) {
   let code;
@@ -212,7 +233,7 @@ function joinRoom(socket, roomCode, name) {
     return { success: false, message: 'Room full' };
   }
 
-  const spawn = getRandomSpawnPoint();
+  const spawn = getSafeSpawnPoint(room, socket.id);
   const playerData = {
     id: socket.id,
     name: cleanName(name),
@@ -429,7 +450,7 @@ io.on('connection', (socket) => {
     const roomCode = result.code;
     const room = result.room;
 
-    const spawn = getRandomSpawnPoint();
+    const spawn = getSafeSpawnPoint(room, socket.id);
     const playerName = cleanName(payload && typeof payload === 'object' ? payload.name : null);
     const playerData = {
       id: socket.id,
@@ -617,7 +638,7 @@ io.on('connection', (socket) => {
         setTimeout(() => {
           const t = room.players.get(hitPlayerId);
           if (t && t.isDead) {
-            const spawn = getRandomSpawnPoint();
+            const spawn = getSafeSpawnPoint(room, hitPlayerId);
             t.position = { x: spawn.x, y: spawn.y, z: spawn.z }; t.health = t.maxHealth; t.isDead = false;
             io.to(found.code).emit('playerRespawned', { id: hitPlayerId, position: { x: t.position.x, y: t.position.y + PLAYER_EYE_HEIGHT, z: t.position.z }, health: t.health });
             broadcastScoreboard(found.code);
