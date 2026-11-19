@@ -157,6 +157,21 @@ function generateRoomCode(existingCodes) {
 // Room state: Map<roomCode, { players: Map<socketId, playerData>, createdAt: number }>
 const rooms = new Map();
 
+const REGEN_DELAY_MS = 5000;
+const REGEN_PER_TICK = 10;
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, room] of rooms) {
+    for (const p of room.players.values()) {
+      if (p.isDead) continue;
+      if (p.health >= p.maxHealth) continue;
+      if (now - (p.lastDamageAt || 0) < REGEN_DELAY_MS) continue;
+      p.health = Math.min(p.maxHealth, p.health + REGEN_PER_TICK);
+      io.to(code).emit('playerHealth', { id: p.id, health: p.health, maxHealth: p.maxHealth });
+    }
+  }
+}, 1000);
+
 // Get the room a socket is in (or null)
 function getPlayerRoom(socketId) {
   for (const [code, room] of rooms) {
