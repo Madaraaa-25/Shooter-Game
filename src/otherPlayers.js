@@ -88,6 +88,18 @@ export class OtherPlayersManager {
     group.add(label);
     group.userData.label = label;
 
+    // Health bar sprite (drawn above the head)
+    const barCanvas = document.createElement('canvas');
+    barCanvas.width = 128; barCanvas.height = 16;
+    const barTexture = new THREE.CanvasTexture(barCanvas);
+    const barSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: barTexture, transparent: true, depthTest: false }));
+    barSprite.scale.set(1.2, 0.15, 1);
+    barSprite.position.y = PLAYER_HEIGHT + 0.18;
+    barSprite.renderOrder = 1;
+    group.add(barSprite);
+    group.userData.healthBar = { sprite: barSprite, ctx: barCanvas.getContext('2d'), texture: barTexture };
+    this.drawHealthBar(group, 100, 100);
+
     // Store original materials for death effect
     group.traverse((child) => {
       if (child.isMesh) {
@@ -118,6 +130,7 @@ export class OtherPlayersManager {
       maxHealth: data.maxHealth || 100,
       isDead: data.isDead || false
     });
+    this.drawHealthBar(mesh, data.health || 100, data.maxHealth || 100);
 
     // Apply dead state if needed
     if (data.isDead) {
@@ -138,12 +151,26 @@ export class OtherPlayersManager {
     }
   }
 
+  drawHealthBar(group, health, maxHealth) {
+    const hb = group.userData.healthBar;
+    if (!hb) return;
+    const ratio = Math.max(0, Math.min(1, health / (maxHealth || 100)));
+    const c = hb.ctx;
+    c.clearRect(0, 0, 128, 16);
+    c.fillStyle = 'rgba(0,0,0,0.7)';
+    c.fillRect(0, 0, 128, 16);
+    c.fillStyle = 'hsl(' + Math.round(ratio * 120) + ', 100%, 45%)';
+    c.fillRect(2, 2, Math.round(124 * ratio), 12);
+    hb.texture.needsUpdate = true;
+  }
+
   // Update health (for hit feedback)
   updateHealth(id, health, maxHealth) {
     const player = this.players.get(id);
     if (player) {
       player.health = health;
       player.maxHealth = maxHealth;
+      this.drawHealthBar(player.mesh, health, maxHealth);
     }
   }
 
@@ -179,6 +206,7 @@ export class OtherPlayersManager {
     player.targetPosition.set(position.x, position.y, position.z);
     player.health = health;
     player.isDead = false;
+    this.drawHealthBar(player.mesh, health, player.maxHealth);
     player.mesh.visible = true;
 
     // Reset materials
@@ -233,6 +261,8 @@ export class OtherPlayersManager {
       player.mesh.scale.y = s;
       const label = player.mesh.userData.label;
       if (label) label.scale.y = 0.5 / s;
+      const bar = player.mesh.userData.healthBar;
+      if (bar) bar.sprite.scale.y = 0.15 / s;
     });
   }
 
