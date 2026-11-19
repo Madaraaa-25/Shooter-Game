@@ -63,7 +63,7 @@ scene.add(ambientLight);
 const dirLight = new THREE.DirectionalLight(0xfff4d6, 3.0);
 dirLight.position.copy(sun.clone().multiplyScalar(60));
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.mapSize.set(1024, 1024);
 dirLight.shadow.camera.near = 0.5;
 dirLight.shadow.camera.far = ARENA_HALF_SIZE * 4;
 dirLight.shadow.camera.left = -ARENA_HALF_SIZE * 1.2;
