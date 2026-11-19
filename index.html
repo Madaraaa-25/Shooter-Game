@@ -21,27 +21,17 @@
         position: absolute;
         top: 50%;
         left: 50%;
-        width: 10px;
-        height: 10px;
+        width: 32px;
+        height: 32px;
         transform: translate(-50%, -50%);
         pointer-events: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      #crosshair::before,
-      #crosshair::after {
-        content: '';
-        position: absolute;
-        background-color: rgba(255, 255, 255, 0.8);
-      }
-      #crosshair::before {
-        width: 2px;
-        height: 10px;
-      }
-      #crosshair::after {
-        width: 10px;
-        height: 2px;
+        background:
+          radial-gradient(circle at center, #ff2a2a 0, #ff2a2a 2px, transparent 2.5px),
+          linear-gradient(#ff2a2a, #ff2a2a) top center / 2px 9px no-repeat,
+          linear-gradient(#ff2a2a, #ff2a2a) bottom center / 2px 9px no-repeat,
+          linear-gradient(#ff2a2a, #ff2a2a) left center / 9px 2px no-repeat,
+          linear-gradient(#ff2a2a, #ff2a2a) right center / 9px 2px no-repeat;
+        filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 4px rgba(255, 40, 40, 0.6));
       }
       #blocker {
         position: absolute;
