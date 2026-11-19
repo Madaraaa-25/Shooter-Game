@@ -649,8 +649,7 @@ function setScreen(state) {
 }
 
 function onRoomJoined(data) {
-  console.log('[NET] roomJoined handler called', data);
-  try { lobbyBusy = false; enableLobbyButtons(); } catch (e) { console.error('[ROOM] enableLobbyButtons', e); }
+    try { lobbyBusy = false; enableLobbyButtons(); } catch (e) { console.error('[ROOM] enableLobbyButtons', e); }
   try { setScreen('ready'); } catch (e) { console.error('[ROOM] setScreen ready', e); }
   try { ui.setRoomCode(data.roomCode); } catch (e) { console.error('[ROOM] setRoomCode', e); }
   try { ui.setLobbyError(''); } catch (e) { console.error('[ROOM] setLobbyError', e); }
