@@ -39,6 +39,11 @@ export class UI {
           width: 200px; box-sizing: border-box; text-align: center; font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold;
           background: #111; color: #44aaff; border: 2px solid #44aaff; border-radius: 4px; padding: 10px; letter-spacing: 1px;">
 
+        <div style="display: flex; gap: 12px;">
+          <button id="lobby-char-male" type="button" style="display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 16px; font-family: 'Courier New', monospace; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer;"><img src="/characters/previews/male.png" alt="" style="width: 96px; height: 96px; image-rendering: pixelated; pointer-events: none;"><span>MALE</span></button>
+          <button id="lobby-char-female" type="button" style="display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 16px; font-family: 'Courier New', monospace; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer;"><img src="/characters/previews/female.png" alt="" style="width: 96px; height: 96px; image-rendering: pixelated; pointer-events: none;"><span>FEMALE</span></button>
+        </div>
+
         <div style="display: flex; gap: 16px; align-items: center;">
         <button id="lobby-create" style="
           padding: 14px 28px; font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold;
@@ -69,6 +74,12 @@ export class UI {
     this.lobbyErrorEl = document.getElementById('lobby-error');
     this.lobbyStatusEl = document.getElementById('lobby-status');
     this.lobbyInviteEl = document.getElementById('lobby-invite');
+    this.lobbyCharacter = 'male';
+    const charBtns = { male: document.getElementById('lobby-char-male'), female: document.getElementById('lobby-char-female') };
+    const paintChar = () => { for (const k of ['male', 'female']) { const on = this.lobbyCharacter === k; charBtns[k].style.background = on ? '#44aaff' : '#111'; charBtns[k].style.color = on ? '#000' : '#44aaff'; charBtns[k].style.border = '2px solid #44aaff'; } };
+    charBtns.male.addEventListener('click', () => { this.lobbyCharacter = 'male'; paintChar(); });
+    charBtns.female.addEventListener('click', () => { this.lobbyCharacter = 'female'; paintChar(); });
+    paintChar();
 
     // Auto-uppercase and cap at 4 characters
     this.lobbyCodeInput.addEventListener('input', () => {
@@ -118,6 +129,10 @@ export class UI {
 
   getLobbyName() {
     return this.lobbyNameInput.value.trim().slice(0, 12) || 'Player';
+  }
+
+  getLobbyCharacter() {
+    return this.lobbyCharacter === 'female' ? 'female' : 'male';
   }
 
   clearLobbyCode() {
