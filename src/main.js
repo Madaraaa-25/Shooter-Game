@@ -591,7 +591,7 @@ ui.setLobbyCallbacks(
     ui.setLobbyError('');
     ui.setLobbyStatus('');
     ui.clearLobbyInvite();
-    network.createRoom(null, ui.getLobbyName());
+    network.createRoom(null, ui.getLobbyName(), ui.getLobbyCharacter());
     startLobbyTimeout();
   },
   () => {
@@ -606,7 +606,7 @@ ui.setLobbyCallbacks(
     ui.setLobbyError('');
     ui.setLobbyStatus('');
     ui.clearLobbyInvite();
-    network.joinRoom(code, ui.getLobbyName());
+    network.joinRoom(code, ui.getLobbyName(), ui.getLobbyCharacter());
     startLobbyTimeout();
   }
 );

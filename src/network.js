@@ -174,18 +174,18 @@ export class NetworkManager {
   }
 
   // Room methods
-  createRoom(requestedCode = null, name = '') {
+  createRoom(requestedCode = null, name = '', character = 'male') {
     if (!this.socket || !this.socket.connected) return;
     this.inLobby = false;
     this.roomCode = requestedCode || null;
-    this.socket.emit('createRoom', { requestedCode, name });
+    this.socket.emit('createRoom', { requestedCode, name, character });
   }
 
-  joinRoom(roomCode, name = '') {
+  joinRoom(roomCode, name = '', character = 'male') {
     if (!this.socket || !this.socket.connected) return;
     this.inLobby = false;
     this.roomCode = roomCode;
-    this.socket.emit('joinRoom', { roomCode, name });
+    this.socket.emit('joinRoom', { roomCode, name, character });
   }
 
   // Called locally the moment the player clicks LEAVE ROOM, before the

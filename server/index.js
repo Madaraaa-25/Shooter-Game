@@ -223,8 +223,11 @@ function cleanName(raw) {
   return s || 'Player';
 }
 
+const ALLOWED_CHARACTERS = ['male', 'female'];
+function cleanCharacter(raw) { return ALLOWED_CHARACTERS.includes(raw) ? raw : 'male'; }
+
 // Get or create room for a player
-function joinRoom(socket, roomCode, name) {
+function joinRoom(socket, roomCode, name, character) {
   const room = rooms.get(roomCode);
   if (!room) {
     return { success: false, message: 'Room not found' };
@@ -237,6 +240,7 @@ function joinRoom(socket, roomCode, name) {
   const playerData = {
     id: socket.id,
     name: cleanName(name),
+    character: cleanCharacter(character),
     position: { x: spawn.x, y: spawn.y, z: spawn.z },
     rotation: { x: 0, y: 0, z: 0, w: 1 },
     color: getRandomColor(),
@@ -455,6 +459,7 @@ io.on('connection', (socket) => {
     const playerData = {
       id: socket.id,
       name: playerName,
+      character: cleanCharacter(payload && typeof payload === 'object' ? payload.character : null),
       position: { x: spawn.x, y: spawn.y, z: spawn.z },
       rotation: { x: 0, y: 0, z: 0, w: 1 },
       color: getRandomColor(),
@@ -473,6 +478,7 @@ io.on('connection', (socket) => {
     const playersList = Array.from(room.players.values()).map(p => ({
       id: p.id,
       name: p.name,
+      character: p.character,
       position: { x: p.position.x, y: p.position.y + PLAYER_EYE_HEIGHT, z: p.position.z },
       rotation: p.rotation,
       color: p.color,
@@ -494,6 +500,7 @@ io.on('connection', (socket) => {
     // If player already in a room, leave it first
     const roomCode = (payload && typeof payload === 'object') ? payload.roomCode : payload;
     const rawName = (payload && typeof payload === 'object') ? payload.name : null;
+    const rawCharacter = (payload && typeof payload === 'object') ? payload.character : null;
     const currentRoom = getPlayerRoom(socket.id);
     if (currentRoom) {
       // If they are already in the requested room, just re-confirm it without
@@ -504,6 +511,7 @@ io.on('connection', (socket) => {
         const playersList = Array.from(room.players.values()).map(p => ({
           id: p.id,
           name: p.name,
+          character: p.character,
           position: { x: p.position.x, y: p.position.y + PLAYER_EYE_HEIGHT, z: p.position.z },
           rotation: p.rotation, color: p.color,
           health: p.health, maxHealth: p.maxHealth, kills: p.kills, deaths: p.deaths, isDead: p.isDead
@@ -515,7 +523,7 @@ io.on('connection', (socket) => {
       leaveRoom(socket.id);
     }
 
-    const result = joinRoom(socket, roomCode, rawName);
+    const result = joinRoom(socket, roomCode, rawName, rawCharacter);
     if (!result.success) {
       socket.emit('roomError', { message: result.message });
       return;
@@ -527,6 +535,7 @@ io.on('connection', (socket) => {
     const playersList = Array.from(room.players.values()).map(p => ({
       id: p.id,
       name: p.name,
+      character: p.character,
       position: { x: p.position.x, y: p.position.y + PLAYER_EYE_HEIGHT, z: p.position.z },
       rotation: p.rotation,
       color: p.color,
@@ -542,6 +551,7 @@ io.on('connection', (socket) => {
     socket.to(roomCode).emit('playerJoined', {
       id: playerData.id,
       name: playerData.name,
+      character: playerData.character,
       position: { x: playerData.position.x, y: playerData.position.y + PLAYER_EYE_HEIGHT, z: playerData.position.z },
       rotation: playerData.rotation,
       color: playerData.color,
