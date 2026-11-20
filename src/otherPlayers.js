@@ -3,6 +3,8 @@ import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT, PLAYER_BODY_RADIUS, PLAYER_HEAD_RADIU
 import { loadCharacter } from './characterModels.js';
 
 const MODEL_YAW = Math.PI;
+const WALK_MIN = 0.5;
+const SPRINT_MIN = 7;
 
 export class OtherPlayersManager {
   constructor(scene) {
@@ -130,6 +132,17 @@ export class OtherPlayersManager {
         group.userData.fallback = null;
       }
       group.add(result.model);
+      const mixer = new THREE.AnimationMixer(result.model);
+      const actions = {};
+      for (const n of ['idle', 'walk', 'sprint']) {
+        const clip = THREE.AnimationClip.findByName(result.animations, n);
+        if (clip) actions[n] = mixer.clipAction(clip);
+      }
+      group.userData.anim = { mixer, actions, current: null };
+      if (actions.idle) {
+        actions.idle.play();
+        group.userData.anim.current = 'idle';
+      }
       result.model.traverse((c) => {
         if (c.isMesh) c.userData.originalMaterial = c.material;
       });
@@ -249,6 +262,7 @@ export class OtherPlayersManager {
     const player = this.players.get(id);
     if (player) {
       player.mesh.userData.removed = true;
+      if (player.mesh.userData.anim) player.mesh.userData.anim.mixer.stopAllAction();
       player.mesh.traverse((child) => {
         if (child.isMesh) {
           if (child.userData.sharedAsset) return;
@@ -283,9 +297,27 @@ export class OtherPlayersManager {
 
     this.players.forEach((player) => {
       if (player.isDead) return; // Don't interpolate dead players
+      if (!player.prevPos) player.prevPos = player.mesh.position.clone();
 
       player.mesh.position.lerp(player.targetPosition, lerpFactor);
       player.mesh.quaternion.slerp(player.targetQuaternion, lerpFactor);
+      const dx = player.mesh.position.x - player.prevPos.x;
+      const dz = player.mesh.position.z - player.prevPos.z;
+      player.prevPos.copy(player.mesh.position);
+      const rawSpeed = delta > 0 ? Math.sqrt(dx * dx + dz * dz) / delta : 0;
+      player.speed = (player.speed || 0) + (rawSpeed - (player.speed || 0)) * Math.min(1, delta * 8);
+      const anim = player.mesh.userData.anim;
+      if (anim) {
+        const want = player.speed >= SPRINT_MIN ? 'sprint' : player.speed >= WALK_MIN ? 'walk' : 'idle';
+        if (want !== anim.current && anim.actions[want]) {
+          const next = anim.actions[want];
+          const prev = anim.actions[anim.current];
+          next.reset().fadeIn(0.2).play();
+          if (prev) prev.fadeOut(0.2);
+          anim.current = want;
+        }
+        anim.mixer.update(delta);
+      }
       const ty = player.targetScaleY ?? 1;
       const s = player.mesh.scale.y + (ty - player.mesh.scale.y) * lerpFactor;
       player.mesh.scale.y = s;
