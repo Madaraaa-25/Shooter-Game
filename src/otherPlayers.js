@@ -134,11 +134,12 @@ export class OtherPlayersManager {
       group.add(result.model);
       const mixer = new THREE.AnimationMixer(result.model);
       const actions = {};
-      for (const n of ['idle', 'walk', 'sprint']) {
+      for (const n of ['idle', 'walk', 'sprint', 'die']) {
         const clip = THREE.AnimationClip.findByName(result.animations, n);
         if (clip) actions[n] = mixer.clipAction(clip);
       }
       group.userData.anim = { mixer, actions, current: null };
+      if (actions.die) { actions.die.setLoop(THREE.LoopOnce, 1); actions.die.clampWhenFinished = true; }
       if (actions.idle) {
         actions.idle.play();
         group.userData.anim.current = 'idle';
@@ -223,10 +224,20 @@ export class OtherPlayersManager {
     player.isDead = isDead;
 
     if (isDead) {
-      // Hide the mesh but keep it in scene for respawning
-      player.mesh.visible = false;
+      // Play death animation
+      const anim = player.mesh.userData.anim;
+      if (anim && anim.actions.die) {
+        for (const [k, a] of Object.entries(anim.actions)) { if (k !== 'die') a.stop(); }
+        anim.actions.die.reset().play();
+        anim.current = 'die';
+        player.dying = true;
+        player.deathTimer = 1.5;
+      } else {
+        player.mesh.visible = false;
+      }
       // Could add a death effect here (ragdoll, particles, etc.)
     } else {
+      this.resetAnimation(player);
       // Respawn - show mesh at new position
       player.mesh.visible = true;
       // Reset materials to original
@@ -238,6 +249,16 @@ export class OtherPlayersManager {
     }
   }
 
+  resetAnimation(player) {
+    player.dying = false;
+    player.prevPos = null;
+    player.speed = 0;
+    const anim = player.mesh.userData.anim;
+    if (!anim) return;
+    for (const a of Object.values(anim.actions)) a.stop();
+    if (anim.actions.idle) { anim.actions.idle.reset().play(); anim.current = 'idle'; }
+  }
+
   // Respawn at new position
   respawnPlayer(id, position, health) {
     const player = this.players.get(id);
@@ -247,6 +268,7 @@ export class OtherPlayersManager {
     player.targetPosition.set(position.x, position.y, position.z);
     player.health = health;
     player.isDead = false;
+    this.resetAnimation(player);
     this.drawHealthBar(player.mesh, health, player.maxHealth);
     player.mesh.visible = true;
 
@@ -296,7 +318,15 @@ export class OtherPlayersManager {
     const lerpFactor = Math.min(1, delta * 15);
 
     this.players.forEach((player) => {
-      if (player.isDead) return; // Don't interpolate dead players
+      if (player.isDead) {
+        if (player.dying) {
+          const a = player.mesh.userData.anim;
+          if (a) a.mixer.update(delta);
+          player.deathTimer -= delta;
+          if (player.deathTimer <= 0) { player.dying = false; player.mesh.visible = false; }
+        }
+        return;
+      }
       if (!player.prevPos) player.prevPos = player.mesh.position.clone();
 
       player.mesh.position.lerp(player.targetPosition, lerpFactor);
