@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { PLAYER_EYE_HEIGHT, PLAYER_HEIGHT, PLAYER_BODY_RADIUS, PLAYER_HEAD_RADIUS } from './constants.js';
-import { loadCharacter } from './characterModels.js';
+import { loadCharacter, loadGun } from './characterModels.js';
 
 const MODEL_YAW = Math.PI;
 const WALK_MIN = 0.5;
 const SPRINT_MIN = 7;
+const GUN_POS = [-0.2, -1.3, 0.2];
+const GUN_ROT_X = Math.PI / 2;
 
 export class OtherPlayersManager {
   constructor(scene) {
@@ -132,6 +134,17 @@ export class OtherPlayersManager {
         group.userData.fallback = null;
       }
       group.add(result.model);
+      loadGun().then((gun) => {
+        if (!gun || group.userData.removed) return;
+        const arm = result.model.getObjectByName('arm-right');
+        if (!arm) return;
+        gun.position.set(GUN_POS[0], GUN_POS[1], GUN_POS[2]);
+        gun.rotation.x = GUN_ROT_X;
+        arm.add(gun);
+        gun.traverse((c) => {
+          if (c.isMesh) c.userData.originalMaterial = c.material;
+        });
+      });
       const mixer = new THREE.AnimationMixer(result.model);
       const actions = {};
       for (const n of ['idle', 'walk', 'sprint', 'die', 'holding-both', 'holding-both-shoot']) {

@@ -38,3 +38,28 @@ export async function loadCharacter(key) {
   });
   return { model, animations: gltf.animations };
 }
+
+export async function loadGun() {
+  if (!cache.has('gun')) {
+    const promise = loader
+      .loadAsync('/guns/blaster-d.glb')
+      .catch((err) => {
+        console.warn('[GUN] failed to load', err);
+        return null;
+      });
+    cache.set('gun', promise);
+  }
+  const gltf = await cache.get('gun');
+  if (!gltf) {
+    return null;
+  }
+  const g = new THREE.Group();
+  g.add(gltf.scene.clone(true));
+  g.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.userData.sharedAsset = true;
+    }
+  });
+  return g;
+}
