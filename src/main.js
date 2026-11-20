@@ -474,6 +474,7 @@ network.onShotFired((data) => {
 
   const shooter = otherPlayers.getPlayerData(data.shooterId);
   if (!shooter) return;
+  otherPlayers.playShoot(data.shooterId);
 
   const origin = new THREE.Vector3(data.origin.x, data.origin.y, data.origin.z);
   const direction = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z).normalize();

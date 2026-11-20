@@ -134,16 +134,24 @@ export class OtherPlayersManager {
       group.add(result.model);
       const mixer = new THREE.AnimationMixer(result.model);
       const actions = {};
-      for (const n of ['idle', 'walk', 'sprint', 'die']) {
-        const clip = THREE.AnimationClip.findByName(result.animations, n);
-        if (clip) actions[n] = mixer.clipAction(clip);
+      for (const n of ['idle', 'walk', 'sprint', 'die', 'holding-both', 'holding-both-shoot']) {
+        let clip = THREE.AnimationClip.findByName(result.animations, n);
+        if (!clip) continue;
+        if (n === 'idle' || n === 'walk' || n === 'sprint') {
+          clip = clip.clone();
+          clip.tracks = clip.tracks.filter((t) => !t.name.startsWith('arm-left.') && !t.name.startsWith('arm-right.'));
+        }
+        const key = n === 'holding-both' ? 'hold' : n === 'holding-both-shoot' ? 'shoot' : n;
+        actions[key] = mixer.clipAction(clip);
       }
       group.userData.anim = { mixer, actions, current: null };
       if (actions.die) { actions.die.setLoop(THREE.LoopOnce, 1); actions.die.clampWhenFinished = true; }
+      if (actions.shoot) actions.shoot.setLoop(THREE.LoopOnce, 1);
       if (actions.idle) {
         actions.idle.play();
         group.userData.anim.current = 'idle';
       }
+      if (actions.hold) actions.hold.play();
       result.model.traverse((c) => {
         if (c.isMesh) c.userData.originalMaterial = c.material;
       });
@@ -249,6 +257,16 @@ export class OtherPlayersManager {
     }
   }
 
+  playShoot(id) {
+    const p = this.players.get(id);
+    if (!p || p.isDead) return;
+    const anim = p.mesh.userData.anim;
+    if (!anim || !anim.actions.shoot || !anim.actions.hold) return;
+    anim.actions.hold.setEffectiveWeight(0);
+    anim.actions.shoot.reset().setEffectiveWeight(1).play();
+    anim.shootTimer = 0.25;
+  }
+
   resetAnimation(player) {
     player.dying = false;
     player.prevPos = null;
@@ -257,6 +275,7 @@ export class OtherPlayersManager {
     if (!anim) return;
     for (const a of Object.values(anim.actions)) a.stop();
     if (anim.actions.idle) { anim.actions.idle.reset().play(); anim.current = 'idle'; }
+    if (anim.actions.hold) anim.actions.hold.reset().setEffectiveWeight(1).play(); anim.shootTimer = 0;
   }
 
   // Respawn at new position
@@ -346,6 +365,7 @@ export class OtherPlayersManager {
           if (prev) prev.fadeOut(0.2);
           anim.current = want;
         }
+        if (anim.shootTimer > 0) { anim.shootTimer -= delta; if (anim.shootTimer <= 0) { anim.actions.shoot.stop(); anim.actions.hold.setEffectiveWeight(1); } }
         anim.mixer.update(delta);
       }
       const ty = player.targetScaleY ?? 1;
